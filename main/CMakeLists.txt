@@ -4,6 +4,7 @@ idf_component_register(
         "app_state.c"
         "actions.c"
         "vars.c"
+        "thumbstick_monitor.c"
         "ui/screens.c"
         "ui/styles.c"
         "ui/images.c"
@@ -28,6 +29,9 @@ idf_component_register(
         wifi_setup
         fluidnc
         waveshare__esp32_p4_wifi6_touch_lcd_7b
+    PRIV_REQUIRES
+        esp_adc
+        esp_driver_gpio
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE MODULE_TYPE="fluidcnc_pendant")

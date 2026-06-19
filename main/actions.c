@@ -161,6 +161,7 @@ void action_reset_override(lv_event_t *e)
 void action_set_wcs(lv_event_t *e)
 {
     int ud = evt_user_data(e);
+    ESP_LOGI(TAG, "[BTN] WCS chip tapped: idx=%d -> G%d", ud, 54+ud);
     lv_obj_t *const wcs[] = {
         objects.jog_wcs_g54, objects.jog_wcs_g55, objects.jog_wcs_g56,
         objects.jog_wcs_g57, objects.jog_wcs_g58, objects.jog_wcs_g59,
@@ -329,6 +330,70 @@ void action_set_probe_type(lv_event_t *e)
         ESP_LOGI(TAG, "probe type -> %d", ud);
     }
 }
+/* PageProbe edit panel — exact same pattern as fluid_edit_panel. Tapping
+ * one of the three probe value tiles (plate, feed, travel) pre-fills the
+ * overlay panel's textarea, points the panel keyboard at it, and
+ * remembers which field is being edited so DONE knows where to write
+ * the typed value back. */
+static int s_probe_edit_field = -1;        /* 0=plate, 1=feed, 2=travel, -1=none */
+
+static void probe_edit_hide_locked(void)
+{
+    if (objects.probe_edit_keyboard) {
+        lv_keyboard_set_textarea(objects.probe_edit_keyboard, NULL);
+    }
+    if (objects.probe_edit_panel) {
+        lv_obj_add_flag(objects.probe_edit_panel, LV_OBJ_FLAG_HIDDEN);
+    }
+    s_probe_edit_field = -1;
+}
+
+void action_probe_edit_field(lv_event_t *e)
+{
+    int ud = evt_user_data(e);
+    if (!objects.probe_edit_panel || !objects.probe_edit_input
+        || !objects.probe_edit_keyboard) return;
+
+    /* Pick label text + current value based on which tile was tapped. */
+    const char *label_text;
+    const char *current;
+    switch (ud) {
+    case 0:  label_text = "Plate thickness (mm)";
+             current    = get_var_probe_plate_thickness(); break;
+    case 1:  label_text = "Probe feed (mm/min)";
+             current    = get_var_probe_feed();            break;
+    case 2:  label_text = "Max travel (mm)";
+             current    = get_var_probe_max_travel();      break;
+    default: return;
+    }
+    s_probe_edit_field = ud;
+
+    if (objects.probe_edit_label) lv_label_set_text(objects.probe_edit_label, label_text);
+    lv_textarea_set_text(objects.probe_edit_input, current ? current : "");
+    lv_keyboard_set_mode(objects.probe_edit_keyboard, LV_KEYBOARD_MODE_NUMBER);
+    lv_keyboard_set_textarea(objects.probe_edit_keyboard, objects.probe_edit_input);
+    lv_obj_clear_flag(objects.probe_edit_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_state(objects.probe_edit_input, LV_STATE_FOCUSED);
+}
+
+void action_probe_edit_done(lv_event_t *e)
+{
+    (void)e;
+    if (!objects.probe_edit_input) { probe_edit_hide_locked(); return; }
+    const char *val = lv_textarea_get_text(objects.probe_edit_input);
+    if (!val) val = "";
+
+    switch (s_probe_edit_field) {
+    case 0: set_var_probe_plate_thickness(val); break;
+    case 1: set_var_probe_feed(val);            break;
+    case 2: set_var_probe_max_travel(val);      break;
+    default: break;
+    }
+    probe_edit_hide_locked();
+}
+
+void action_probe_kb_hide(lv_event_t *e) { (void)e; probe_edit_hide_locked(); }
+
 void action_probe_start(lv_event_t *e)
 {
     (void)e;

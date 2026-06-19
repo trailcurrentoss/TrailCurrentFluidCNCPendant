@@ -84,16 +84,17 @@ static esp_err_t ws_open(const pendant_config_t *cfg)
          * the connection into its grbl reader — the TCP link stays open
          * but no status reports come back. */
         .subprotocol          = "arduino",
-        /* Detect dead-remote scenarios: when FluidNC's main loop hangs but
-         * the TCP socket stays open, the client used to silently sit on a
-         * "connected" link forever — no status reports, no rejected writes,
-         * no auto-reconnect. Sending a WebSocket ping every 10 s and
-         * requiring a pong within 5 s tears the link down so the client's
-         * own 5 s reconnect_timeout_ms kicks in and re-establishes. The
-         * pendant surfaces this as OFFLINE on the status pill, which is
-         * exactly what the user needs to know when the controller hangs. */
-        .ping_interval_sec    = 10,
-        .pingpong_timeout_sec = 5,
+        /* Detect dead-remote scenarios — but not over-aggressively. Tight
+         * timings (10 s ping / 5 s pong) were producing false positives
+         * because FluidNC's main loop can stall briefly under heavy stepper
+         * interrupt load, and the ESP-Hosted SDIO link to the C6 adds
+         * variable WiFi-side latency on top of that. A 30 s ping with a
+         * 15 s pong window still catches a truly dead controller within
+         * ~45 s (well before the user can blame the pendant), while
+         * tolerating multi-second controller-side hiccups without
+         * thrashing the connection. */
+        .ping_interval_sec    = 30,
+        .pingpong_timeout_sec = 15,
     };
     s_ws = esp_websocket_client_init(&wcfg);
     if (!s_ws) return ESP_FAIL;

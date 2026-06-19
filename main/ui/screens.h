@@ -807,6 +807,16 @@ typedef struct _objects_t {
     lv_obj_t *page_probe_dock__dock_btn_settings;
     lv_obj_t *page_probe_dock__dock_icon_settings;
     lv_obj_t *page_probe_dock__dock_label_settings;
+    lv_obj_t *probe_edit_panel;
+    lv_obj_t *probe_edit_caption;
+    lv_obj_t *probe_edit_label;
+    lv_obj_t *probe_edit_input;
+    lv_obj_t *probe_edit_divider;
+    lv_obj_t *probe_edit_keyboard;
+    lv_obj_t *probe_edit_cancel;
+    lv_obj_t *probe_edit_cancel_lbl;
+    lv_obj_t *probe_edit_done;
+    lv_obj_t *probe_edit_done_lbl;
     lv_obj_t *page_macros_status_bar;
     lv_obj_t *page_macros_status_bar__status_bar_root;
     lv_obj_t *page_macros_status_bar__status_brand_dot;

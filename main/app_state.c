@@ -631,8 +631,29 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
 
     /* Status bar — pill label, WCS, hold label, mini DRO (8 instances each).
      * The pill background colour change per state is a follow-up that needs
-     * a .eez-project edit (see Piece E in the plan). */
-    set_var_machine_state(machine_state_text(st->state));
+     * a .eez-project edit (see Piece E in the plan).
+     *
+     * OFFLINE latch: when the controller drops, the transport auto-reconnects
+     * in <5 s and the pill would flick back to IDLE before the user notices.
+     * Hold OFFLINE on screen for at least OFFLINE_MIN_DISPLAY_MS so any drop
+     * is unmistakably visible. The DRO numbers behind it can update during
+     * the latch — that's fine, the pill is the alert channel here. */
+    const char *new_pill = machine_state_text(st->state);
+    static int64_t  s_offline_hold_until_us = 0;
+    static const char *s_last_pill = "OFFLINE";
+    const int64_t now_us = esp_timer_get_time();
+    const int64_t OFFLINE_MIN_DISPLAY_MS = 3000;
+    if (!strcmp(new_pill, "OFFLINE")) {
+        s_offline_hold_until_us = now_us + OFFLINE_MIN_DISPLAY_MS * 1000;
+        set_var_machine_state(new_pill);
+        s_last_pill = "OFFLINE";
+    } else if (now_us < s_offline_hold_until_us) {
+        /* In the OFFLINE latch window — leave the pill alone. */
+    } else {
+        set_var_machine_state(new_pill);
+        s_last_pill = new_pill;
+    }
+    (void)s_last_pill;
     set_var_active_wcs(st->wcs);
     set_var_units_label(st->units_inch ? "in" : "mm");
     set_var_hold_label(st->state == FLUIDNC_STATE_HOLD ? "RESUME" : "HOLD");

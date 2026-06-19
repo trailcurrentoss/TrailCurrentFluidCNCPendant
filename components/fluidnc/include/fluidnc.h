@@ -84,6 +84,20 @@ esp_err_t fluidnc_hold_resume(void);
 /* axis: 0=X 1=Y 2=Z; dir: +1 or -1; step in mm (or inch, controller respects current G20/21). */
 esp_err_t fluidnc_jog(int axis, int dir, float step_mm, float feed_mm_min);
 
+/* Combined X+Y incremental jog. Used by the thumbstick: a small step is
+ * emitted every sample period so the controller's planner has continuous
+ * motion to chew on. feed_mm_min is the vector feedrate along the diagonal. */
+esp_err_t fluidnc_jog_xy(float dx_mm, float dy_mm, float feed_mm_min);
+
+/* Three-axis combined incremental jog. Any axis whose delta is ~0 is omitted
+ * from the resulting $J= line, so single-axis moves still look clean on the
+ * controller. feed_mm_min is the path/vector feedrate. */
+esp_err_t fluidnc_jog_axes(float dx_mm, float dy_mm, float dz_mm, float feed_mm_min);
+
+/* Realtime jog cancel (0x85). Stops the current $J= motion at the
+ * configured deceleration without dropping into HOLD or ALARM. */
+esp_err_t fluidnc_jog_cancel(void);
+
 /* axis: 0=X 1=Y 2=Z; -1 = zero all. */
 esp_err_t fluidnc_zero_axis(int axis);
 

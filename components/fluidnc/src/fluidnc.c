@@ -30,6 +30,7 @@
 #include "proto.h"
 #include "transport.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,10 +50,14 @@ static const char *TAG = "fluidnc";
 #define POLL_PERIOD_MS  250
 /* If no RX activity for this long while we're polling `?` at 4 Hz, the
  * link is half-broken (TCP open, controller stuck) — tear it down so the
- * transport's own auto-reconnect re-establishes a working link. 4 seconds
- * is well past worst-case round-trip on a healthy network (typical is
- * <20 ms) so we won't false-trigger during a momentary stall. */
-#define RX_STALE_THRESHOLD_MS  4000
+ * transport's own auto-reconnect re-establishes a working link.
+ *
+ * 4 s used to be the threshold here but it was tripping during normal
+ * controller-side hiccups (heavy stepper interrupt load, WiFi latency
+ * blips through the ESP-Hosted C6 link). 10 s is well clear of those
+ * transient stalls while still catching a truly hung controller within
+ * about three poll periods past the stall. */
+#define RX_STALE_THRESHOLD_MS  10000
 
 /* --- State ---------------------------------------------------------------- */
 
@@ -139,6 +144,15 @@ static esp_err_t write_rt(uint8_t byte)
     return err;
 }
 
+/* GRBL 1.1 spec: WCO is sent only every ~30 status reports as a bandwidth
+ * optimisation. Between WCO frames the client must cache the last-seen
+ * offset and apply it to every MPos-only report — otherwise WPos goes
+ * stale and the user sees machine coordinates updating while work
+ * coordinates appear frozen (this is exactly what happens right after
+ * homing if the cache isn't here). */
+static bool  s_wco_valid = false;
+static float s_wco_x = 0, s_wco_y = 0, s_wco_z = 0;
+
 /* Apply a parsed status report into s_status under the state mutex. */
 static void apply_status_report(const fluidnc_status_report_t *r)
 {
@@ -148,12 +162,23 @@ static void apply_status_report(const fluidnc_status_report_t *r)
     if (r->has_mpos) {
         s_status.mpos.x = r->mx; s_status.mpos.y = r->my; s_status.mpos.z = r->mz;
     }
+
+    /* Update cached WCO whenever this report carries one. */
+    if (r->has_wco) {
+        s_wco_x = r->ox;
+        s_wco_y = r->oy;
+        s_wco_z = r->oz;
+        s_wco_valid = true;
+    }
+
+    /* WPos resolution: prefer an explicit WPos in this report, else derive
+     * MPos − WCO using the cached WCO. */
     if (r->has_wpos) {
         s_status.wpos.x = r->wx; s_status.wpos.y = r->wy; s_status.wpos.z = r->wz;
-    } else if (r->has_mpos && r->has_wco) {
-        s_status.wpos.x = r->mx - r->ox;
-        s_status.wpos.y = r->my - r->oy;
-        s_status.wpos.z = r->mz - r->oz;
+    } else if (r->has_mpos && s_wco_valid) {
+        s_status.wpos.x = r->mx - s_wco_x;
+        s_status.wpos.y = r->my - s_wco_y;
+        s_status.wpos.z = r->mz - s_wco_z;
     }
 
     if (r->has_fs) {
@@ -354,6 +379,10 @@ void fluidnc_dispatcher_set_link_open(bool open)
     } else {
         status_lock();
         s_status.state = FLUIDNC_STATE_DISCONNECTED;
+        /* Drop any cached WCO — after reconnect we may be talking to a
+         * different controller / different WCS, so wait for a fresh WCO
+         * frame before deriving WPos again. */
+        s_wco_valid = false;
         status_unlock();
         notify();
     }
@@ -479,6 +508,36 @@ esp_err_t fluidnc_jog(int axis, int dir, float step_mm, float feed_mm_min)
                        letter, d, feed_mm_min);
     if (len < 0 || len >= (int)sizeof(buf)) return ESP_FAIL;
     return write_line(buf);
+}
+
+esp_err_t fluidnc_jog_xy(float dx_mm, float dy_mm, float feed_mm_min)
+{
+    return fluidnc_jog_axes(dx_mm, dy_mm, 0.0f, feed_mm_min);
+}
+
+esp_err_t fluidnc_jog_axes(float dx_mm, float dy_mm, float dz_mm,
+                           float feed_mm_min)
+{
+    if (s_status.state == FLUIDNC_STATE_ALARM ||
+        s_status.state == FLUIDNC_STATE_HOMING) return ESP_OK;
+    char buf[96];
+    int  off = 0;
+    off += snprintf(buf + off, sizeof(buf) - off, "$J=G91 G21");
+    if (fabsf(dx_mm) > 1e-4f)
+        off += snprintf(buf + off, sizeof(buf) - off, " X%.4f", dx_mm);
+    if (fabsf(dy_mm) > 1e-4f)
+        off += snprintf(buf + off, sizeof(buf) - off, " Y%.4f", dy_mm);
+    if (fabsf(dz_mm) > 1e-4f)
+        off += snprintf(buf + off, sizeof(buf) - off, " Z%.4f", dz_mm);
+    if (off == 10) return ESP_OK;   /* "$J=G91 G21" — no axis given, nothing to do */
+    off += snprintf(buf + off, sizeof(buf) - off, " F%.1f\n", feed_mm_min);
+    if (off < 0 || off >= (int)sizeof(buf)) return ESP_FAIL;
+    return write_line(buf);
+}
+
+esp_err_t fluidnc_jog_cancel(void)
+{
+    return write_rt(0x85);
 }
 
 esp_err_t fluidnc_zero_axis(int axis)

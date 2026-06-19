@@ -187,6 +187,35 @@ esp_err_t fluidnc_jog(int axis, int dir, float step_mm, float feed_mm_min)
     return ESP_OK;
 }
 
+esp_err_t fluidnc_jog_xy(float dx_mm, float dy_mm, float feed_mm_min)
+{
+    return fluidnc_jog_axes(dx_mm, dy_mm, 0.0f, feed_mm_min);
+}
+
+esp_err_t fluidnc_jog_axes(float dx_mm, float dy_mm, float dz_mm,
+                           float feed_mm_min)
+{
+    (void)feed_mm_min;
+    if (s_status.state == FLUIDNC_STATE_ALARM ||
+        s_status.state == FLUIDNC_STATE_RUN   ||
+        s_status.state == FLUIDNC_STATE_HOMING) return ESP_OK;
+    s_status.wpos.x += dx_mm;
+    s_status.wpos.y += dy_mm;
+    s_status.wpos.z += dz_mm;
+    s_status.state = FLUIDNC_STATE_JOG;
+    notify();
+    return ESP_OK;
+}
+
+esp_err_t fluidnc_jog_cancel(void)
+{
+    if (s_status.state == FLUIDNC_STATE_JOG) {
+        s_status.state = FLUIDNC_STATE_IDLE;
+        notify();
+    }
+    return ESP_OK;
+}
+
 esp_err_t fluidnc_zero_axis(int axis)
 {
     if (s_status.state == FLUIDNC_STATE_RUN) return ESP_OK;

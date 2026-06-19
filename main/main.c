@@ -13,6 +13,7 @@
 
 #include "app_state.h"
 #include "pendant_config.h"
+#include "thumbstick_monitor.h"
 
 #if __has_include("ui/ui.h")
 #  include "ui/ui.h"
@@ -223,6 +224,9 @@ void app_main(void)
     bsp_display_unlock();
     ESP_LOGW(TAG, "ui.h not found — EEZ Studio export needed");
 #endif
+
+    /* --- Diagnostic: thumbstick wiring monitor (logs ADC + digital state). --- */
+    thumbstick_monitor_start();
 
     /* --- Boot the state machine; this advances to WIFI_SETUP or WIFI_CONNECTING
      *     depending on whether NVS already has credentials. --- */

@@ -56,6 +56,9 @@ extern void action_fluid_kb_hide(lv_event_t * e);
 extern void action_fluid_edit_done(lv_event_t * e);
 extern void action_spindle_start(lv_event_t * e);
 extern void action_spindle_stop(lv_event_t * e);
+extern void action_probe_edit_field(lv_event_t * e);
+extern void action_probe_edit_done(lv_event_t * e);
+extern void action_probe_kb_hide(lv_event_t * e);
 
 
 #ifdef __cplusplus
