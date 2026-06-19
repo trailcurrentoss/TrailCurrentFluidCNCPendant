@@ -1,0 +1,18 @@
+menu "TrailCurrent FluidNC"
+
+config FLUIDNC_USE_MOCK
+    bool "Use mock backend (no real controller)"
+    default n
+    help
+        When enabled, components/fluidnc/src/fluidnc_mock.c is compiled
+        instead of the real protocol backend. The mock simulates motion,
+        spindle ramp, and job progress so the touchscreen UI can be
+        exercised on a bench without a FluidNC controller attached.
+
+        Disable this to compile the real backend that talks to a FluidNC
+        controller over WebSocket (default port 81 for FluidNC 3.x,
+        80 for 4.x) or UART. The transport is selected at runtime via
+        Settings → Machine → "Configure FluidNC Connection" and persisted
+        in NVS via pendant_config.
+
+endmenu

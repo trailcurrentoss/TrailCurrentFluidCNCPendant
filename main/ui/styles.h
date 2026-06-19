@@ -185,11 +185,17 @@ void remove_style_axis_chip_label(lv_obj_t *obj);
 
 // Style: StatusPill
 lv_style_t *get_style_status_pill_MAIN_DEFAULT();
+lv_style_t *get_style_status_pill_MAIN_CHECKED();
+lv_style_t *get_style_status_pill_MAIN_FOCUSED();
+lv_style_t *get_style_status_pill_MAIN_DISABLED();
 void add_style_status_pill(lv_obj_t *obj);
 void remove_style_status_pill(lv_obj_t *obj);
 
 // Style: StatusPillDot
 lv_style_t *get_style_status_pill_dot_MAIN_DEFAULT();
+lv_style_t *get_style_status_pill_dot_MAIN_CHECKED();
+lv_style_t *get_style_status_pill_dot_MAIN_FOCUSED();
+lv_style_t *get_style_status_pill_dot_MAIN_DISABLED();
 void add_style_status_pill_dot(lv_obj_t *obj);
 void remove_style_status_pill_dot(lv_obj_t *obj);
 

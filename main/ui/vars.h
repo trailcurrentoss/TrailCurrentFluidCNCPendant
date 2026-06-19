@@ -59,7 +59,11 @@ enum FlowGlobalVariables {
     FLOW_GLOBAL_VARIABLE_FW_VERSION = 39,
     FLOW_GLOBAL_VARIABLE_CONTROLLER_INFO = 40,
     FLOW_GLOBAL_VARIABLE_UI_INFO = 41,
-    FLOW_GLOBAL_VARIABLE_NET_INFO = 42
+    FLOW_GLOBAL_VARIABLE_NET_INFO = 42,
+    FLOW_GLOBAL_VARIABLE_SCREEN_BRIGHTNESS = 43,
+    FLOW_GLOBAL_VARIABLE_SCREEN_TIMEOUT_VALUE = 44,
+    FLOW_GLOBAL_VARIABLE_DEFAULT_JOG_FEED = 45,
+    FLOW_GLOBAL_VARIABLE_SELECTED_THEME = 46
 };
 
 // Native global variables
@@ -150,6 +154,14 @@ extern const char *get_var_ui_info();
 extern void set_var_ui_info(const char *value);
 extern const char *get_var_net_info();
 extern void set_var_net_info(const char *value);
+extern int32_t get_var_screen_brightness();
+extern void set_var_screen_brightness(int32_t value);
+extern int32_t get_var_screen_timeout_value();
+extern void set_var_screen_timeout_value(int32_t value);
+extern int32_t get_var_default_jog_feed();
+extern void set_var_default_jog_feed(int32_t value);
+extern int32_t get_var_selected_theme();
+extern void set_var_selected_theme(int32_t value);
 
 
 #ifdef __cplusplus

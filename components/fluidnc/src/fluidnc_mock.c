@@ -1,3 +1,7 @@
+#include "sdkconfig.h"
+
+#if CONFIG_FLUIDNC_USE_MOCK
+
 #include "fluidnc.h"
 
 #include <math.h>
@@ -10,9 +14,12 @@
 
 /*
  * Mock implementation: drives a simulated machine state so the UI can be
- * exercised without a real FluidNC controller. When the real UART / WebSocket
- * / Telnet backends land, they replace the protocol task body — the public
- * API and status struct stay the same.
+ * exercised without a real FluidNC controller. Selected at build time via
+ * `idf.py menuconfig` → "TrailCurrent FluidNC" → "Use mock backend".
+ *
+ * The real backend (src/fluidnc.c + src/transport_*.c + src/proto.c)
+ * exposes the same public API; this file is excluded from the build when
+ * CONFIG_FLUIDNC_USE_MOCK is unset.
  */
 
 static const char *TAG = "fluidnc";
@@ -309,3 +316,5 @@ size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
     memcpy(out, s_files, n * sizeof(s_files[0]));
     return n;
 }
+
+#endif /* CONFIG_FLUIDNC_USE_MOCK */

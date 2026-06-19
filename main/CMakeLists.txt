@@ -16,6 +16,7 @@ idf_component_register(
         "ui/ui_font_fa_16.c"
         "ui/ui_font_fa_22.c"
         "ui/ui_font_fa_28.c"
+        "ui/ui_image_cnc_machine.c"
     INCLUDE_DIRS "." "ui"
     REQUIRES
         nvs_flash

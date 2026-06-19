@@ -75,6 +75,25 @@ void app_state_set_pendant_tab(int tab_id);
  * any task — brackets LVGL access with bsp_display_lock(). */
 void app_state_refresh_connection_display(void);
 
+/* Repaint the 6 Files page rows from fluidnc_get_files(). Called after
+ * fluidnc_refresh_files() returns and from action_file_refresh when the
+ * user taps the refresh button. Safe from any task. */
+void app_state_refresh_files_display(void);
+
+/* Push the vars.c "pre-connect" defaults into every UI-bound widget so
+ * the screen lights up showing OFFLINE / 0.000 / (no job loaded) / etc.
+ * instead of the demo text baked into the .eez-project. Call once after
+ * ui_init() and after restore_user_settings_from_nvs(). Safe from any
+ * task. */
+void app_state_paint_initial_state(void);
+
+/* Toggle the CHECKED state across every dynamically-created file row so
+ * the visual "selected row" follows the user's tap. Called from
+ * action_file_select. idx is the row index (0-based, MAX_FILES exclusive);
+ * passing -1 (or out-of-range) clears every row. Must be called from a
+ * context where the LVGL lock is held — i.e. inside an event handler. */
+void app_state_files_select_visual(int idx);
+
 #ifdef __cplusplus
 }
 #endif

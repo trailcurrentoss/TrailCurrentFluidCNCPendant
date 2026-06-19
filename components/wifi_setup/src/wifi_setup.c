@@ -256,7 +256,8 @@ void wifi_setup_format_ip(char *buf, size_t buf_sz)
 {
     if (!buf || buf_sz == 0) return;
     if (s_ip == 0) {
-        strlcpy(buf, "—", buf_sz);
+        /* Plain hyphen — Montserrat's built-in glyph subset has no em-dash. */
+        strlcpy(buf, "-", buf_sz);
         return;
     }
     snprintf(buf, buf_sz, "%lu.%lu.%lu.%lu",

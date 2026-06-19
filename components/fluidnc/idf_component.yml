@@ -1,0 +1,4 @@
+# Managed dependencies for the FluidNC protocol component.
+# Pulled by `idf.py reconfigure` from https://components.espressif.com/
+dependencies:
+  espressif/esp_websocket_client: "~1.7.0"

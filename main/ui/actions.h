@@ -46,6 +46,16 @@ extern void action_set_fluid_transport(lv_event_t * e);
 extern void action_fluid_connect(lv_event_t * e);
 extern void action_fluid_disconnect(lv_event_t * e);
 extern void action_change_wifi(lv_event_t * e);
+extern void action_change_screen_brightness(lv_event_t * e);
+extern void action_timeout_changed(lv_event_t * e);
+extern void action_change_jog_feed_default(lv_event_t * e);
+extern void action_change_theme(lv_event_t * e);
+extern void action_open_fluid_connect(lv_event_t * e);
+extern void action_fluid_edit_field(lv_event_t * e);
+extern void action_fluid_kb_hide(lv_event_t * e);
+extern void action_fluid_edit_done(lv_event_t * e);
+extern void action_spindle_start(lv_event_t * e);
+extern void action_spindle_stop(lv_event_t * e);
 
 
 #ifdef __cplusplus
