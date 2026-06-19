@@ -571,10 +571,47 @@ void set_var_mist_on(bool v)
     bsp_display_unlock();
 }
 
-/* --- Probe -------------------------------------------------------------- */
-VAR_STRING(probe_plate_thickness, probe_plate_thickness)
-VAR_STRING(probe_feed,            probe_feed)
-VAR_STRING(probe_max_travel,      probe_max_travel)
+/* --- Probe --------------------------------------------------------------
+ *
+ * Each probe parameter has both a cached string (used by action_probe_start
+ * to build the gcode) AND a visible label on the Probe screen. The bare
+ * VAR_STRING macro only writes the cache, so the on-screen tile would
+ * keep showing its initial text after an edit. These setters fan the new
+ * value out to the label as well — same pattern as set_var_machine_state. */
+const char *get_var_probe_plate_thickness(void) { return s_v.probe_plate_thickness; }
+void        set_var_probe_plate_thickness(const char *v)
+{
+    bsp_display_lock(0);
+    strlcpy(s_v.probe_plate_thickness, v ? v : "",
+            sizeof(s_v.probe_plate_thickness));
+    if (objects.probe_info_plate_val) {
+        lv_label_set_text(objects.probe_info_plate_val,
+                          s_v.probe_plate_thickness);
+    }
+    bsp_display_unlock();
+}
+
+const char *get_var_probe_feed(void) { return s_v.probe_feed; }
+void        set_var_probe_feed(const char *v)
+{
+    bsp_display_lock(0);
+    strlcpy(s_v.probe_feed, v ? v : "", sizeof(s_v.probe_feed));
+    if (objects.probe_info_feed_val) {
+        lv_label_set_text(objects.probe_info_feed_val, s_v.probe_feed);
+    }
+    bsp_display_unlock();
+}
+
+const char *get_var_probe_max_travel(void) { return s_v.probe_max_travel; }
+void        set_var_probe_max_travel(const char *v)
+{
+    bsp_display_lock(0);
+    strlcpy(s_v.probe_max_travel, v ? v : "", sizeof(s_v.probe_max_travel));
+    if (objects.probe_info_travel_val) {
+        lv_label_set_text(objects.probe_info_travel_val, s_v.probe_max_travel);
+    }
+    bsp_display_unlock();
+}
 
 /* --- System info -------------------------------------------------------- */
 VAR_STRING(fw_version,      fw_version)

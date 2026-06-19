@@ -670,8 +670,22 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
     format_axis(buf, sizeof(buf), st->mpos.y, st->units_inch); set_var_machine_dro_y(buf);
     format_axis(buf, sizeof(buf), st->mpos.z, st->units_inch); set_var_machine_dro_z(buf);
 
-    /* Alarm ribbon — visibility is driven by whether the text is non-empty. */
-    set_var_alarm_text(st->state == FLUIDNC_STATE_ALARM ? st->alarm_text : "");
+    /* Alarm ribbon — visibility is driven by whether the text is non-empty.
+     * The controller can enter ALARM via two paths:
+     *   (a) a discrete "ALARM:N" line, which fills s_status.alarm_text in
+     *       the dispatcher with a specific message, OR
+     *   (b) a `<Alarm|...>` status report alone — no specific text.
+     * Path (b) used to leave alarm_text empty, which hid the ribbon and
+     * left the user with no visible RESET button. Fall back to a generic
+     * message so the ribbon (and its RESET button) always appears whenever
+     * the controller is in ALARM. */
+    const char *ribbon_text = "";
+    if (st->state == FLUIDNC_STATE_ALARM) {
+        ribbon_text = (st->alarm_text[0] != '\0')
+                          ? st->alarm_text
+                          : "ALARM - tap RESET to clear";
+    }
+    set_var_alarm_text(ribbon_text);
 
     /* Job — Dashboard job card + Run header. Elapsed / ETA are derived from
      * a job-start timestamp captured here (the backend doesn't track them
