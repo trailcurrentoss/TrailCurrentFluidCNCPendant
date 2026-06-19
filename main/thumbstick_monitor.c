@@ -361,17 +361,35 @@ static void jog_tick(int x1, int y1, int x2, int y2)
     }
     s_idle_ticks = 0;
 
-    /* The motion already queued at the controller is good enough — let it
-     * keep running, don't touch the WS. This is the critical throttle
-     * that keeps FluidNC's main loop free to send `?` status replies. */
+    /* Motion already queued is close enough — let it keep running, don't
+     * spam the WS. The intent_changed check pairs with the planner-depth
+     * check below to keep FluidNC's main loop free to handle `?` polls. */
     if (!intent_changed(vx, vy, vz)) return;
 
-    /* Intent changed meaningfully (direction, speed, or refresh). Cancel
-     * any in-flight motion so the controller decelerates from the OLD
-     * motion before starting the new one — otherwise the controller
-     * queues the new segment behind the old, and the stick feels laggy. */
-    if (s_jog_active) {
-        fluidnc_jog_cancel();
+    /* Flow control — if the controller still has a full planner of $J=
+     * segments waiting, holding off lets it drain. Without this the WS
+     * RX side back-pressures and the dispatcher's `?` polls get queued
+     * behind un-acked $J= replies, which is what made the dashboard
+     * coordinates freeze during jog earlier. */
+    if (fluidnc_jog_outstanding() >= MAX_OUTSTANDING_JOGS) return;
+
+    /* Direction reversal — when the user flips the stick more than 90°,
+     * any old segments still queued would have to fully execute before
+     * the new direction kicks in, which feels laggy. Flush the planner
+     * with 0x85 so the new $J= takes effect immediately. For smaller
+     * angular changes (within the same general direction) we DO NOT
+     * cancel — letting the controller blend consecutive segments is what
+     * gives smooth motion. */
+    float old_mag = sqrtf(s_emit_vx * s_emit_vx +
+                          s_emit_vy * s_emit_vy +
+                          s_emit_vz * s_emit_vz);
+    float new_mag_check = sqrtf(vx * vx + vy * vy + vz * vz);
+    if (s_jog_active && old_mag > 1e-3f && new_mag_check > 1e-3f) {
+        float dot = (s_emit_vx * vx + s_emit_vy * vy + s_emit_vz * vz)
+                    / (old_mag * new_mag_check);
+        if (dot < REVERSAL_COS_THRESH) {
+            fluidnc_jog_cancel();
+        }
     }
 
     float vec_feed = sqrtf(vx * vx + vy * vy + vz * vz);
