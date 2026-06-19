@@ -151,6 +151,62 @@ bool fluidnc_proto_parse_file_entry(const char *line, char *name, size_t name_ma
     return true;
 }
 
+/* Case-insensitive find of `needle` in `hay`. */
+static const char *ci_strstr(const char *hay, const char *needle)
+{
+    size_t nl = strlen(needle);
+    if (nl == 0) return hay;
+    for (; *hay; hay++) {
+        size_t i = 0;
+        while (i < nl && tolower((unsigned char)hay[i])
+                          == tolower((unsigned char)needle[i])) i++;
+        if (i == nl) return hay;
+    }
+    return NULL;
+}
+
+/* Parse "<number>[<KMG>B]" starting at p, returning bytes. Recognises
+ * raw byte counts and the suffixes B / KB / MB / GB (case-insensitive,
+ * with optional whitespace). Returns 0 if nothing parses. */
+static uint64_t parse_size_token(const char *p)
+{
+    while (*p == ' ' || *p == ':') p++;
+    char *end = NULL;
+    double v = strtod(p, &end);
+    if (end == p) return 0;
+    while (*end == ' ') end++;
+    /* Detect units; default = bytes. */
+    uint64_t mult = 1;
+    if      (tolower((unsigned char)end[0]) == 'g') mult = 1024ULL*1024ULL*1024ULL;
+    else if (tolower((unsigned char)end[0]) == 'm') mult = 1024ULL*1024ULL;
+    else if (tolower((unsigned char)end[0]) == 'k') mult = 1024ULL;
+    return (uint64_t)(v * (double)mult);
+}
+
+bool fluidnc_proto_parse_storage_info(const char *line,
+                                       uint64_t *total_bytes,
+                                       uint64_t *used_bytes)
+{
+    if (!line) return false;
+    bool got = false;
+    const char *p;
+
+    if ((p = ci_strstr(line, "total:")) != NULL) {
+        uint64_t v = parse_size_token(p + 6);
+        if (v && total_bytes) { *total_bytes = v; got = true; }
+    }
+    /* "size:" is FluidNC's alternate spelling for total */
+    if (!got && (p = ci_strstr(line, "size:")) != NULL) {
+        uint64_t v = parse_size_token(p + 5);
+        if (v && total_bytes) { *total_bytes = v; got = true; }
+    }
+    if ((p = ci_strstr(line, "used:")) != NULL) {
+        uint64_t v = parse_size_token(p + 5);
+        if (used_bytes) { *used_bytes = v; got = true; }
+    }
+    return got;
+}
+
 /* ---------- status report parser ---------- */
 
 /* Map a grbl state token (e.g. "Run", "Hold:1") to our enum + sub-state. */

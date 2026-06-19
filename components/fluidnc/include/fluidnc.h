@@ -56,6 +56,7 @@ typedef struct {
     int             spindle_load;
     bool            flood;
     bool            mist;
+    bool            probe_active;   /* GRBL Pn:P — probe pin currently asserted */
     char            alarm_text[96];
     /* Current job */
     char            job_file[64];
@@ -134,6 +135,20 @@ typedef struct {
 
 esp_err_t fluidnc_refresh_files(void);
 size_t    fluidnc_get_files(fluidnc_file_t *out, size_t out_cap);
+
+/* SD card capacity reported by the controller. Either pointer may be NULL.
+ * Values are 0 until the controller has reported them — wait until after a
+ * fluidnc_refresh_files() round-trip to read meaningful numbers. Returns
+ * false if the controller hasn't reported any SD storage info yet (so the
+ * UI can show a placeholder). */
+bool      fluidnc_get_storage_info(uint64_t *total_bytes, uint64_t *used_bytes);
+
+/* Monotonic counter that bumps every time the controller has finished
+ * replying to a $SD/List (i.e. the file table is fresh) OR the storage
+ * info caches were updated. The UI can compare it to a remembered value
+ * to detect "the dispatcher has something new for the Files page" without
+ * needing a callback. Starts at 0. */
+uint32_t  fluidnc_get_files_seq(void);
 
 #ifdef __cplusplus
 }

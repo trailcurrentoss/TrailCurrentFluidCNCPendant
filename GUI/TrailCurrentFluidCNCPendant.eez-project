@@ -303,7 +303,7 @@
         "objID": "271cdaf7-7f28-de35-3dea-106e7d1bfcf0",
         "name": "job_file",
         "type": "string",
-        "defaultValue": "\"\u2014\"",
+        "defaultValue": "\"—\"",
         "persistent": false,
         "native": false
       },
@@ -447,7 +447,7 @@
         "objID": "3105ca2f-a9bd-d30b-310a-bb50daf92315",
         "name": "net_info",
         "type": "string",
-        "defaultValue": "\"\u2014\"",
+        "defaultValue": "\"—\"",
         "persistent": false,
         "native": false
       },
@@ -11356,7 +11356,7 @@
                       "objID": "39a136e9-6d52-3e4d-bc3a-66781aeb2089",
                       "type": "LVGLLabelWidget",
                       "left": 68,
-                      "top": 12,
+                      "top": 54,
                       "width": 32,
                       "height": 32,
                       "customInputs": [],
@@ -11402,7 +11402,7 @@
                       "objID": "f91bde98-7aa4-aaf9-b339-2a21d984a680",
                       "type": "LVGLLabelWidget",
                       "left": 0,
-                      "top": 50,
+                      "top": 92,
                       "width": 168,
                       "height": 14,
                       "customInputs": [],
@@ -11457,7 +11457,7 @@
                       "objID": "d5a27156-7d83-d1ac-ec00-9efe3b3823c7",
                       "type": "LVGLLabelWidget",
                       "left": 0,
-                      "top": 68,
+                      "top": 110,
                       "width": 168,
                       "height": 14,
                       "customInputs": [],
@@ -11569,7 +11569,7 @@
                       "objID": "2433115f-499d-bfb6-9eca-519f4d155aac",
                       "type": "LVGLLabelWidget",
                       "left": 68,
-                      "top": 12,
+                      "top": 54,
                       "width": 32,
                       "height": 32,
                       "customInputs": [],
@@ -11615,7 +11615,7 @@
                       "objID": "1b056ed2-d699-7317-1417-8a436ebeb63c",
                       "type": "LVGLLabelWidget",
                       "left": 0,
-                      "top": 50,
+                      "top": 92,
                       "width": 168,
                       "height": 14,
                       "customInputs": [],
@@ -11728,7 +11728,7 @@
                       "objID": "7aca3139-4ebd-f599-6b25-6fafc5fdef18",
                       "type": "LVGLLabelWidget",
                       "left": 68,
-                      "top": 12,
+                      "top": 54,
                       "width": 32,
                       "height": 32,
                       "customInputs": [],
@@ -11774,7 +11774,7 @@
                       "objID": "00b02cdc-c1c1-67c5-c638-38fd7e579afd",
                       "type": "LVGLLabelWidget",
                       "left": 0,
-                      "top": 50,
+                      "top": 92,
                       "width": 168,
                       "height": 14,
                       "customInputs": [],
@@ -11887,7 +11887,7 @@
                       "objID": "912568c3-8caf-8579-6cdb-52124e55f8be",
                       "type": "LVGLLabelWidget",
                       "left": 68,
-                      "top": 12,
+                      "top": 54,
                       "width": 32,
                       "height": 32,
                       "customInputs": [],
@@ -11933,7 +11933,7 @@
                       "objID": "1db13be0-ac62-29aa-ba04-b7b5df402bc2",
                       "type": "LVGLLabelWidget",
                       "left": 0,
-                      "top": 50,
+                      "top": 92,
                       "width": 168,
                       "height": 14,
                       "customInputs": [],
@@ -25926,7 +25926,6 @@
                   "text": "",
                   "textType": "literal",
                   "placeholder": "19.00",
-                  "placeholderType": "literal",
                   "oneLineMode": true,
                   "passwordMode": false,
                   "acceptedCharacters": "",
@@ -25971,8 +25970,7 @@
                     "objID": "771edbd7-a6d8-d323-e8fb-7254c9bacdd2"
                   },
                   "group": "",
-                  "groupIndex": 0,
-                  "text": ""
+                  "groupIndex": 0
                 },
                 {
                   "objID": "880935ee-b223-2c03-da9b-71d3401ba7ee",
@@ -26123,8 +26121,7 @@
                     "objID": "5a9fa44b-93d6-10ec-e79b-ca9ec6995d29"
                   },
                   "group": "",
-                  "groupIndex": 0,
-                  "text": ""
+                  "groupIndex": 0
                 },
                 {
                   "objID": "74f42a31-e0a7-fb3f-75d9-c68b512ead9a",
@@ -26226,11 +26223,11 @@
                     "objID": "5b507c41-c822-ee67-8ce0-72d530b93e33"
                   },
                   "group": "",
-                  "groupIndex": 0,
-                  "text": ""
+                  "groupIndex": 0
                 }
               ],
               "widgetFlags": "HIDDEN|CLICKABLE|CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_ON_FOCUS|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlag": true,
               "hiddenFlagType": "literal",
               "clickableFlag": true,
               "clickableFlagType": "literal",
@@ -26246,9 +26243,7 @@
                 "objID": "a386ed3e-3818-7e21-facb-62ca245c2bb5"
               },
               "group": "",
-              "groupIndex": 0,
-              "text": "",
-              "hiddenFlag": true
+              "groupIndex": 0
             },
             {
               "objID": "95e61a8c-fe9a-faa8-9747-149938c03b28",

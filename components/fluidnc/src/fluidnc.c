@@ -90,13 +90,23 @@ static char    s_partial[FLUIDNC_LINE_MAX];
 static size_t  s_partial_len = 0;
 static SemaphoreHandle_t s_partial_mtx = NULL;
 
-/* File listing — collected between "$LocalFS/List" send and the following
+/* File listing — collected between "$SD/List" send and the following
  * "ok". The pendant only displays a few rows so this is small. */
 #define FILES_MAX 24
 static fluidnc_file_t s_files[FILES_MAX];
 static size_t         s_files_n = 0;
 static SemaphoreHandle_t s_files_mtx = NULL;
 static volatile bool  s_collecting_files = false;
+
+/* SD card capacity, populated from `[MSG: ... Total: X Used: Y]` lines
+ * that FluidNC emits during `$SD/List`. Stays 0 until the controller has
+ * reported them at least once. */
+static uint64_t s_sd_total_bytes = 0;
+static uint64_t s_sd_used_bytes  = 0;
+static bool     s_sd_info_valid  = false;
+/* Bumped on any fresh files/storage cache update — the UI compares to
+ * its remembered value to know when to repaint without polling. */
+static volatile uint32_t s_files_seq = 0;
 
 /* --- Helpers -------------------------------------------------------------- */
 
@@ -233,6 +243,7 @@ static void handle_line(const char *line)
     case FLUIDNC_RX_OK:
         if (s_collecting_files) {
             s_collecting_files = false;
+            s_files_seq++;
             ESP_LOGI(TAG, "file listing complete (%u entries)", (unsigned)s_files_n);
             notify();
         }
@@ -258,6 +269,21 @@ static void handle_line(const char *line)
         char msg[96];
         if (fluidnc_proto_get_msg(line, msg, sizeof(msg))) {
             ESP_LOGI(TAG, "MSG: %s", msg);
+        }
+        /* Some FluidNC versions emit `[MSG:Total: X Used: Y]` (and
+         * variants) as part of the `$SD/List` reply. Snap it up
+         * whenever it appears so the UI gets capacity along with the
+         * file list. The parser is permissive about units (B/KB/MB/GB)
+         * and silently ignores lines that don't match. */
+        uint64_t t = s_sd_total_bytes, u = s_sd_used_bytes;
+        if (fluidnc_proto_parse_storage_info(line, &t, &u)) {
+            status_lock();
+            if (t) s_sd_total_bytes = t;
+            s_sd_used_bytes = u;
+            s_sd_info_valid = true;
+            status_unlock();
+            s_files_seq++;
+            notify();
         }
         break;
     }
@@ -649,12 +675,13 @@ esp_err_t fluidnc_job_start(const char *file_name)
     char buf[96];
     if (file_name && file_name[0]) {
         strlcpy(s_status.job_file, file_name, sizeof(s_status.job_file));
-        /* Try LocalFS first (FluidNC 3.x default). The controller will
-         * respond with error:8 if the path is wrong, which we surface as
-         * an alarm-banner on the next status update. */
-        snprintf(buf, sizeof(buf), "$LocalFS/Run=/spiffs/%s\n", file_name);
+        /* Run from the SD card — matches `$SD/List` in fluidnc_refresh_files
+         * so the user picks a file they actually saw on screen. The
+         * controller answers with error:8 if the path is wrong, which the
+         * dispatcher surfaces as an alarm banner via the next status. */
+        snprintf(buf, sizeof(buf), "$SD/Run=/sd/%s\n", file_name);
     } else if (s_status.job_file[0] && s_status.job_file[0] != '-') {
-        snprintf(buf, sizeof(buf), "$LocalFS/Run=/spiffs/%s\n", s_status.job_file);
+        snprintf(buf, sizeof(buf), "$SD/Run=/sd/%s\n", s_status.job_file);
     } else {
         return ESP_ERR_INVALID_ARG;
     }
@@ -724,7 +751,10 @@ esp_err_t fluidnc_refresh_files(void)
     s_files_n = 0;
     xSemaphoreGive(s_files_mtx);
     s_collecting_files = true;
-    return write_line("$LocalFS/List\n");
+    /* Query the FluidNC controller's SD card — this is the operator's
+     * primary file store. The on-board SPIFFS ($LocalFS/List) is for
+     * configuration files, not gcode jobs. */
+    return write_line("$SD/List\n");
 }
 
 size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
@@ -741,6 +771,18 @@ size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
     memcpy(out, s_files, n * sizeof(s_files[0]));
     xSemaphoreGive(s_files_mtx);
     return n;
+}
+
+bool fluidnc_get_storage_info(uint64_t *total_bytes, uint64_t *used_bytes)
+{
+    if (total_bytes) *total_bytes = s_sd_total_bytes;
+    if (used_bytes)  *used_bytes  = s_sd_used_bytes;
+    return s_sd_info_valid;
+}
+
+uint32_t fluidnc_get_files_seq(void)
+{
+    return s_files_seq;
 }
 
 #endif /* !CONFIG_FLUIDNC_USE_MOCK */

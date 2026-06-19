@@ -337,6 +337,14 @@ esp_err_t fluidnc_send_line(const char *line)
 }
 
 esp_err_t fluidnc_refresh_files(void)   { return ESP_OK; }
+bool fluidnc_get_storage_info(uint64_t *total_bytes, uint64_t *used_bytes)
+{
+    /* Mock: pretend a 4 GB card with the demo gcode taking 12 MB. */
+    if (total_bytes) *total_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+    if (used_bytes)  *used_bytes  = 12ULL * 1024ULL * 1024ULL;
+    return true;
+}
+uint32_t fluidnc_get_files_seq(void) { return 0; }
 size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
 {
     if (!out || out_cap == 0) return 0;

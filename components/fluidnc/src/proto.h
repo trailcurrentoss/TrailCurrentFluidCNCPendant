@@ -96,6 +96,17 @@ bool fluidnc_proto_get_msg(const char *line, char *out, size_t out_max);
 bool fluidnc_proto_parse_file_entry(const char *line, char *name, size_t name_max,
                                     uint32_t *size_bytes);
 
+/* Parse a `[MSG:...]` line looking for FluidNC's SD card capacity report.
+ * Different FluidNC versions emit different shapes — the common ones are:
+ *     [MSG:Total: 3.7 GB Used: 12.4 MB]
+ *     [MSG:SD Size: 7.2 GB Used: 1.1 GB Free: 6.1 GB]
+ *     [MSG:Total: 3947814912 Used: 12345678]
+ * Returns true if at least one of total/used was found. Either out-pointer
+ * may be NULL. Values not present in the line are left untouched. */
+bool fluidnc_proto_parse_storage_info(const char *line,
+                                       uint64_t *total_bytes,
+                                       uint64_t *used_bytes);
+
 #ifdef __cplusplus
 }
 #endif

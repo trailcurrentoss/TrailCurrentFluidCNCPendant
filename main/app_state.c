@@ -438,6 +438,46 @@ static void refresh_files_display_locked(void)
         snprintf(buf, sizeof(buf), "%u file%s", (unsigned)n, n == 1 ? "" : "s");
         lv_label_set_text(objects.files_count, buf);
     }
+
+    /* Caption — the source of the listing, fixed text now that we always
+     * query the controller's SD card. */
+    if (objects.files_caption) {
+        lv_label_set_text(objects.files_caption, "SD CARD");
+    }
+
+    /* Storage tile — pull cached SD capacity from the dispatcher. The
+     * controller emits this as `[MSG:Total: X Used: Y]` during the SD
+     * list reply (FluidNC 3.5+); until that arrives we show a hyphen so
+     * the user knows the link is up but the controller hasn't reported.
+     * The bar always lives in [0..100] so the 0–100 range we set in the
+     * .eez-project is the right fit. */
+    uint64_t total = 0, used = 0;
+    bool have_storage = fluidnc_get_storage_info(&total, &used);
+    if (objects.files_stg_val) {
+        if (have_storage && total > 0) {
+            char buf[40];
+            double used_mb  = (double)used  / (1024.0 * 1024.0);
+            double total_mb = (double)total / (1024.0 * 1024.0);
+            if (total_mb >= 1024.0) {
+                snprintf(buf, sizeof(buf), "%.2f / %.2f GB",
+                         used_mb / 1024.0, total_mb / 1024.0);
+            } else {
+                snprintf(buf, sizeof(buf), "%.1f / %.1f MB", used_mb, total_mb);
+            }
+            lv_label_set_text(objects.files_stg_val, buf);
+        } else {
+            lv_label_set_text(objects.files_stg_val, "—");
+        }
+    }
+    if (objects.files_stg_bar) {
+        int32_t pct = 0;
+        if (have_storage && total > 0) {
+            pct = (int32_t)((used * 100ULL) / total);
+            if (pct < 0)   pct = 0;
+            if (pct > 100) pct = 100;
+        }
+        lv_bar_set_value(objects.files_stg_bar, pct, LV_ANIM_OFF);
+    }
 }
 
 void app_state_refresh_files_display(void)
@@ -722,12 +762,21 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
         set_var_job_eta("--:--");
     }
 
-    /* First successful connect — populate the Files page once so the user
-     * sees real listings instead of the placeholder rows baked in by the
-     * .eez-project. fluidnc_refresh_files() is a no-op in the mock; the
-     * real backend will (re)scan the controller's SD listing. */
+    /* First successful connect — kick off a controller-side $SD/List so
+     * the dispatcher starts populating fresh file rows + storage info.
+     * fluidnc_refresh_files() is a no-op in the mock backend. */
     if (just_connected) {
         fluidnc_refresh_files();
+    }
+
+    /* Repaint Files whenever the dispatcher signals fresh data — file list
+     * completed, or a `[MSG: Total/Used]` line just landed. The dispatcher
+     * bumps fluidnc_get_files_seq() on either event; we mirror its value
+     * and only call into LVGL when it changes. Cheap, no callbacks. */
+    static uint32_t s_last_files_seq = 0;
+    uint32_t cur_seq = fluidnc_get_files_seq();
+    if (cur_seq != s_last_files_seq) {
+        s_last_files_seq = cur_seq;
         app_state_refresh_files_display();
     }
 #else
