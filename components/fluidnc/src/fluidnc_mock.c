@@ -345,6 +345,7 @@ bool fluidnc_get_storage_info(uint64_t *total_bytes, uint64_t *used_bytes)
     return true;
 }
 uint32_t fluidnc_get_files_seq(void) { return 0; }
+int fluidnc_jog_outstanding(void) { return 0; }
 size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
 {
     if (!out || out_cap == 0) return 0;

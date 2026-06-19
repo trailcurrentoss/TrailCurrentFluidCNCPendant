@@ -108,6 +108,11 @@ static bool     s_sd_info_valid  = false;
  * its remembered value to know when to repaint without polling. */
 static volatile uint32_t s_files_seq = 0;
 
+/* Pending-$J=-without-ok counter. Lets the thumbstick task pace its
+ * emits to the controller's planner depth instead of blasting them and
+ * waiting for the WS send buffer to back-pressure. */
+static volatile int s_jogs_outstanding = 0;
+
 /* --- Helpers -------------------------------------------------------------- */
 
 static void notify(void)
@@ -226,6 +231,11 @@ static void apply_status_report(const fluidnc_status_report_t *r)
         s_status.flood      = false;
         s_status.mist       = false;
     }
+
+    /* Probe pin state — the `Pn:P...` field. Same omit-when-clear semantics
+     * as the accessory field: missing Pn means no pins are asserted, which
+     * for the probe is "not touching the workpiece". */
+    s_status.probe_active = r->has_pn ? r->pn_probe : false;
     status_unlock();
     notify();
 }
@@ -247,6 +257,11 @@ static void handle_line(const char *line)
             ESP_LOGI(TAG, "file listing complete (%u entries)", (unsigned)s_files_n);
             notify();
         }
+        /* Bookkeeping for the jog flow control. ok's for non-jog commands
+         * also decrement, but the clamp at 0 prevents drift; in the
+         * thumbstick's steady-state we only care that the counter tracks
+         * the planner depth within ~1 segment. */
+        if (s_jogs_outstanding > 0) s_jogs_outstanding--;
         break;
     case FLUIDNC_RX_ERROR: {
         int code = fluidnc_proto_get_error_code(line);
@@ -558,12 +573,22 @@ esp_err_t fluidnc_jog_axes(float dx_mm, float dy_mm, float dz_mm,
     if (off == 10) return ESP_OK;   /* "$J=G91 G21" — no axis given, nothing to do */
     off += snprintf(buf + off, sizeof(buf) - off, " F%.1f\n", feed_mm_min);
     if (off < 0 || off >= (int)sizeof(buf)) return ESP_FAIL;
-    return write_line(buf);
+    esp_err_t err = write_line(buf);
+    if (err == ESP_OK) s_jogs_outstanding++;
+    return err;
 }
 
 esp_err_t fluidnc_jog_cancel(void)
 {
+    /* 0x85 flushes the controller's jog planner; any outstanding $J=
+     * we had counted is gone. */
+    s_jogs_outstanding = 0;
     return write_rt(0x85);
+}
+
+int fluidnc_jog_outstanding(void)
+{
+    return s_jogs_outstanding;
 }
 
 esp_err_t fluidnc_zero_axis(int axis)

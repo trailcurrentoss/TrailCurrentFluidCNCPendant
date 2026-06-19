@@ -99,6 +99,12 @@ esp_err_t fluidnc_jog_axes(float dx_mm, float dy_mm, float dz_mm, float feed_mm_
  * configured deceleration without dropping into HOLD or ALARM. */
 esp_err_t fluidnc_jog_cancel(void);
 
+/* Number of $J= lines sent without a matching `ok` having come back —
+ * a rough proxy for how many segments the controller has queued in its
+ * planner. The thumbstick uses this to throttle emits so the planner
+ * never overruns (which used to lock up FluidNC's main loop). */
+int       fluidnc_jog_outstanding(void);
+
 /* axis: 0=X 1=Y 2=Z; -1 = zero all. */
 esp_err_t fluidnc_zero_axis(int axis);
 

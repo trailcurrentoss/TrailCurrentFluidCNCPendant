@@ -710,6 +710,20 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
     format_axis(buf, sizeof(buf), st->mpos.y, st->units_inch); set_var_machine_dro_y(buf);
     format_axis(buf, sizeof(buf), st->mpos.z, st->units_inch); set_var_machine_dro_z(buf);
 
+    /* Probe pin indicator — dot turns "live" via LV_STATE_CHECKED (the
+     * shared status_pill_dot style flips to the accent colour in that
+     * state). Label flips between "Probe inactive" / "Probe TRIGGERED"
+     * so the user has unambiguous text feedback when the probe makes
+     * contact. */
+    if (objects.probe_status_dot) {
+        if (st->probe_active) lv_obj_add_state(objects.probe_status_dot,   LV_STATE_CHECKED);
+        else                  lv_obj_clear_state(objects.probe_status_dot, LV_STATE_CHECKED);
+    }
+    if (objects.probe_status_lbl) {
+        lv_label_set_text(objects.probe_status_lbl,
+                          st->probe_active ? "Probe TRIGGERED" : "Probe inactive");
+    }
+
     /* Alarm ribbon — visibility is driven by whether the text is non-empty.
      * The controller can enter ALARM via two paths:
      *   (a) a discrete "ALARM:N" line, which fills s_status.alarm_text in

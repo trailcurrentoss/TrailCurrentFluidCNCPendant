@@ -65,10 +65,20 @@ static const char *TAG = "thumbstick";
  *   INTENT_MAG_REL       — relative magnitude change that triggers a
  *                          resend (12 % = noticeable speed change).
  */
-#define JOG_SEGMENT_MS      400
-#define INTENT_REFRESH_MS   300
+#define JOG_SEGMENT_MS      150
+#define INTENT_REFRESH_MS   100
 #define INTENT_DIR_DEG      15.0f
 #define INTENT_MAG_REL      0.12f
+/* Reversal threshold — dot product of old vs new direction vectors. < 0
+ * means the new direction is more than 90° away from the old, i.e. the
+ * user has flipped the stick. That's the ONE case where we cancel the
+ * planner queue; for any smaller angular change we just queue the new
+ * segment and let FluidNC blend the transition. */
+#define REVERSAL_COS_THRESH (-0.1f)
+/* Max queued $J= we let pile up at the controller. FluidNC's planner is
+ * 16 deep; staying well under that leaves headroom for the periodic `?`
+ * to slip in and keeps the WS RX from backing up. */
+#define MAX_OUTSTANDING_JOGS 4
 
 /* Grace period before firing 0x85 jog-cancel after the stick falls into
  * the deadzone. Without this, a fast direction change (X+ → through center
