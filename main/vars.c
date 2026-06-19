@@ -382,6 +382,10 @@ void        set_var_units_label(const char *v)
  * driving them. The bars are LVGLBar (not Slider) so they're display-only;
  * the +/- buttons fire action_adjust_override, which calls fluidnc, which
  * calls back through on_fluid_status -> set_var_<ov>_pct(). */
+/* Bars are authored in EEZ Studio with range 0–100 (matches the on-screen
+ * "100 %" expectation: full bar = 100 %). For overrides above 100 % the
+ * numeric label still shows the true percentage; we just clamp the bar's
+ * visual to its max so values above 100 stay pinned to "full". */
 #define OV_PCT_VAR(NAME, LABEL_FIELD, BAR_FIELD)                              \
     int32_t get_var_##NAME(void) { return s_v.NAME; }                         \
     void    set_var_##NAME(int32_t v) {                                       \
@@ -393,7 +397,10 @@ void        set_var_units_label(const char *v)
             lv_label_set_text(objects.LABEL_FIELD, buf);                      \
         }                                                                     \
         if (objects.BAR_FIELD) {                                              \
-            lv_bar_set_value(objects.BAR_FIELD, v, LV_ANIM_OFF);              \
+            int32_t bar_v = v;                                                \
+            if (bar_v < 0)   bar_v = 0;                                       \
+            if (bar_v > 100) bar_v = 100;                                     \
+            lv_bar_set_value(objects.BAR_FIELD, bar_v, LV_ANIM_OFF);          \
         }                                                                     \
         bsp_display_unlock();                                                 \
     }
@@ -401,6 +408,7 @@ OV_PCT_VAR(feed_ov_pct,    dash_ov_val_feed,    dash_ov_bar_feed)
 OV_PCT_VAR(rapid_ov_pct,   dash_ov_val_rapid,   dash_ov_bar_rapid)
 OV_PCT_VAR(spindle_ov_pct, dash_ov_val_spindle, dash_ov_bar_spindle)
 #undef OV_PCT_VAR
+
 
 /* --- Job ---------------------------------------------------------------- *
  * Run header (run_hdr_*) and Dashboard job card (dash_job_*) both show the
@@ -545,10 +553,9 @@ void set_var_flood_on(bool v)
 {
     bsp_display_lock(0);
     s_v.flood_on = v;
-    if (objects.dash_tq_flood) {
-        if (v) lv_obj_add_state(objects.dash_tq_flood,   LV_STATE_CHECKED);
-        else   lv_obj_clear_state(objects.dash_tq_flood, LV_STATE_CHECKED);
-    }
+    /* The dashboard "FLOOD" button became Soft Reset in the .eez-project
+     * (see dash_tq_soft_reset) — flood state only mirrors on the Spindle
+     * page now. */
     if (objects.spin_cool_flood) {
         if (v) lv_obj_add_state(objects.spin_cool_flood,   LV_STATE_CHECKED);
         else   lv_obj_clear_state(objects.spin_cool_flood, LV_STATE_CHECKED);

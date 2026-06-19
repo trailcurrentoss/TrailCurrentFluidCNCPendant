@@ -8761,51 +8761,6 @@
               }
             },
             {
-              "objID": "0250dd17-abb6-4740-f0b7-9a3cbd3904d8",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "bb69a532-e71e-a15c-c6f9-99ee1949ea61",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageDashboard_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "b0b00035-8c33-59ab-392f-6071e30ea709"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "9c29d6a4-f3d2-c53f-1476-2989810a07b5",
-                "values": {}
-              }
-            },
-            {
               "objID": "9ce9dc96-3f65-f948-e98f-4bc8f7a5984c",
               "type": "LVGLPanelWidget",
               "left": 0,
@@ -10004,7 +9959,7 @@
                       "group": "",
                       "groupIndex": 0,
                       "min": 0,
-                      "max": 200,
+                      "max": 100,
                       "mode": "NORMAL",
                       "value": 100,
                       "valueType": "literal",
@@ -10413,7 +10368,7 @@
                       "group": "",
                       "groupIndex": 0,
                       "min": 0,
-                      "max": 200,
+                      "max": 100,
                       "mode": "NORMAL",
                       "value": 100,
                       "valueType": "literal",
@@ -10822,7 +10777,7 @@
                       "group": "",
                       "groupIndex": 0,
                       "min": 0,
-                      "max": 200,
+                      "max": 100,
                       "mode": "NORMAL",
                       "value": 100,
                       "valueType": "literal",
@@ -11600,11 +11555,11 @@
                       "objID": "5732ea4a-3274-1a00-b413-d3deb1b9882d",
                       "eventName": "CLICKED",
                       "handlerType": "action",
-                      "action": "ToggleFlood",
+                      "action": "EStop",
                       "userData": 0
                     }
                   ],
-                  "identifier": "dash_tq_flood",
+                  "identifier": "dash_tq_soft_reset",
                   "leftUnit": "px",
                   "topUnit": "px",
                   "widthUnit": "px",
@@ -11627,7 +11582,7 @@
                       },
                       "timeline": [],
                       "eventHandlers": [],
-                      "identifier": "dash_tq_icon_flood",
+                      "identifier": "dash_tq_icon_soft_reset",
                       "leftUnit": "px",
                       "topUnit": "px",
                       "widthUnit": "px",
@@ -11651,7 +11606,7 @@
                       },
                       "group": "",
                       "groupIndex": 0,
-                      "text": "\\uf043",
+                      "text": "\\uf021",
                       "textType": "literal",
                       "longMode": "WRAP",
                       "recolor": false
@@ -11673,7 +11628,7 @@
                       },
                       "timeline": [],
                       "eventHandlers": [],
-                      "identifier": "dash_tq_lbl_flood",
+                      "identifier": "dash_tq_lbl_soft_reset",
                       "leftUnit": "px",
                       "topUnit": "px",
                       "widthUnit": "px",
@@ -11706,7 +11661,7 @@
                       },
                       "group": "",
                       "groupIndex": 0,
-                      "text": "FLOOD",
+                      "text": "SOFT RESET",
                       "textType": "literal",
                       "longMode": "WRAP",
                       "recolor": false
@@ -12119,6 +12074,51 @@
                 "objID": "af783487-4df8-13ea-586c-650cea242b98",
                 "values": {}
               }
+            },
+            {
+              "objID": "0250dd17-abb6-4740-f0b7-9a3cbd3904d8",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "bb69a532-e71e-a15c-c6f9-99ee1949ea61",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageDashboard_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "b0b00035-8c33-59ab-392f-6071e30ea709"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "9c29d6a4-f3d2-c53f-1476-2989810a07b5",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -12212,51 +12212,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "40468ba1-f191-2103-28b0-5526ae176466",
-                "values": {}
-              }
-            },
-            {
-              "objID": "ecc99b96-4d92-5411-8f65-a05fee1ea74f",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "99d0a083-ba5c-94b4-f84f-4c9d020b1e74",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageJog_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "9090eaa3-1780-db42-bb22-3a81206bc1c4"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "b39c666a-553d-7f66-b476-d78c0ee727bc",
                 "values": {}
               }
             },
@@ -16319,6 +16274,51 @@
                 "objID": "0c7870f9-3428-0c9a-1281-4a5f077ab89e",
                 "values": {}
               }
+            },
+            {
+              "objID": "ecc99b96-4d92-5411-8f65-a05fee1ea74f",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "99d0a083-ba5c-94b4-f84f-4c9d020b1e74",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageJog_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "9090eaa3-1780-db42-bb22-3a81206bc1c4"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "b39c666a-553d-7f66-b476-d78c0ee727bc",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -16412,51 +16412,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "3d6e2f93-e522-3a20-51ff-d1c512defb35",
-                "values": {}
-              }
-            },
-            {
-              "objID": "1e30877c-1bf3-b040-105f-636cfa8f0675",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "cb9cb26f-3c59-5b54-175c-1a3ab7248766",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageRun_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "7b249382-041a-910c-56a0-b775ec2d1cf8"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "f6b54f6f-40d4-5d75-357e-036b8e11b0f5",
                 "values": {}
               }
             },
@@ -20772,6 +20727,51 @@
                 "objID": "94e02e1b-ad96-0e42-fd09-c0a552bd72d7",
                 "values": {}
               }
+            },
+            {
+              "objID": "1e30877c-1bf3-b040-105f-636cfa8f0675",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "cb9cb26f-3c59-5b54-175c-1a3ab7248766",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageRun_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "7b249382-041a-910c-56a0-b775ec2d1cf8"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "f6b54f6f-40d4-5d75-357e-036b8e11b0f5",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -20865,51 +20865,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "485d54c2-b5b7-0490-b8a0-96cfffadae7f",
-                "values": {}
-              }
-            },
-            {
-              "objID": "3f195073-c772-ef9d-9307-32803893cdad",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "64d6e84e-59b6-0998-146d-ab40558ffe5b",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageFiles_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "d2184908-ef87-cbb3-d7c0-e7deef4efecf"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "71ca933c-d640-c15b-4b65-00bfa818a05d",
                 "values": {}
               }
             },
@@ -21996,6 +21951,51 @@
                 "objID": "db822529-d2c7-bbe9-fe3e-88633da0da60",
                 "values": {}
               }
+            },
+            {
+              "objID": "3f195073-c772-ef9d-9307-32803893cdad",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "64d6e84e-59b6-0998-146d-ab40558ffe5b",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageFiles_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "d2184908-ef87-cbb3-d7c0-e7deef4efecf"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "71ca933c-d640-c15b-4b65-00bfa818a05d",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -22089,51 +22089,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "a04e4cef-81cd-ddd1-f1f8-0644e9afc171",
-                "values": {}
-              }
-            },
-            {
-              "objID": "9e3205c0-86fa-0bce-cf3a-6b4dd43f392c",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "6831fb63-2651-07b7-3876-8dc12871bf3a",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageSpindle_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "ebe8ffd5-0dc0-2d5c-d7b9-cff1732ae0e5"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "e99ba178-138c-ac03-decb-e01ddc8b623a",
                 "values": {}
               }
             },
@@ -23725,6 +23680,51 @@
                 "objID": "6be9ed30-19e5-8233-e68d-bf4c5372a57c",
                 "values": {}
               }
+            },
+            {
+              "objID": "9e3205c0-86fa-0bce-cf3a-6b4dd43f392c",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "6831fb63-2651-07b7-3876-8dc12871bf3a",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageSpindle_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "ebe8ffd5-0dc0-2d5c-d7b9-cff1732ae0e5"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "e99ba178-138c-ac03-decb-e01ddc8b623a",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -23818,51 +23818,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "da36e71f-57a7-b5f4-70be-58712be3135a",
-                "values": {}
-              }
-            },
-            {
-              "objID": "95e61a8c-fe9a-faa8-9747-149938c03b28",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "091b4083-b807-30d9-d32c-b69d5759a531",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageProbe_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "69ab842e-7bc1-ef21-783c-a3e7f02e3166"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "c5fc2c30-67dd-ac7a-3556-8a6a736564cd",
                 "values": {}
               }
             },
@@ -26294,6 +26249,51 @@
               "groupIndex": 0,
               "text": "",
               "hiddenFlag": true
+            },
+            {
+              "objID": "95e61a8c-fe9a-faa8-9747-149938c03b28",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "091b4083-b807-30d9-d32c-b69d5759a531",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageProbe_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "69ab842e-7bc1-ef21-783c-a3e7f02e3166"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "c5fc2c30-67dd-ac7a-3556-8a6a736564cd",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -26387,51 +26387,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "eec53421-061d-63e0-21f2-d30c799a8697",
-                "values": {}
-              }
-            },
-            {
-              "objID": "34aaee4e-a42a-aeef-acb0-50f51ef460ca",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "cf3146df-580f-3026-2769-61482a2013fc",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageMacros_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "0e410fe3-39c5-d4fa-b90b-80df8dbb82c8"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "dcc93d01-117c-7444-b398-b986e46e3c54",
                 "values": {}
               }
             },
@@ -28289,6 +28244,51 @@
                 "objID": "1a8ff0f5-2ea1-2156-4f67-a87c65ff13cd",
                 "values": {}
               }
+            },
+            {
+              "objID": "34aaee4e-a42a-aeef-acb0-50f51ef460ca",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "cf3146df-580f-3026-2769-61482a2013fc",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageMacros_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "0e410fe3-39c5-d4fa-b90b-80df8dbb82c8"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "dcc93d01-117c-7444-b398-b986e46e3c54",
+                "values": {}
+              }
             }
           ],
           "widgetFlags": "CLICKABLE|PRESS_LOCK|CLICK_FOCUSABLE|GESTURE_BUBBLE|SNAPPABLE|SCROLLABLE|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER",
@@ -28382,51 +28382,6 @@
               "userWidgetPageName": "StatusBar",
               "userPropertyValues": {
                 "objID": "b4a02db6-1b63-21b0-153f-45d413fececa",
-                "values": {}
-              }
-            },
-            {
-              "objID": "4918dff7-6992-3d8f-ba27-1fd97f40f3bd",
-              "type": "LVGLUserWidgetWidget",
-              "left": 0,
-              "top": 46,
-              "width": 1024,
-              "height": 38,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "396e5669-d146-fc39-e619-41a30a61a6d9",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "PageSettings_alarm",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
-              "hiddenFlagType": "literal",
-              "clickableFlag": true,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "localStyles": {
-                "objID": "12a4426a-af71-c1d1-327a-f7ad4518e68d"
-              },
-              "group": "",
-              "groupIndex": 0,
-              "userWidgetPageName": "AlarmRibbon",
-              "userPropertyValues": {
-                "objID": "d6184806-f4dc-76c5-884e-15d350817fb0",
                 "values": {}
               }
             },
@@ -33424,6 +33379,51 @@
               "userWidgetPageName": "BottomDock",
               "userPropertyValues": {
                 "objID": "90459861-f3d1-69bb-f401-62f3ba8085a3",
+                "values": {}
+              }
+            },
+            {
+              "objID": "4918dff7-6992-3d8f-ba27-1fd97f40f3bd",
+              "type": "LVGLUserWidgetWidget",
+              "left": 0,
+              "top": 46,
+              "width": 1024,
+              "height": 38,
+              "customInputs": [],
+              "customOutputs": [],
+              "style": {
+                "objID": "396e5669-d146-fc39-e619-41a30a61a6d9",
+                "useStyle": "default",
+                "conditionalStyles": [],
+                "childStyles": []
+              },
+              "timeline": [],
+              "eventHandlers": [],
+              "identifier": "PageSettings_alarm",
+              "leftUnit": "px",
+              "topUnit": "px",
+              "widthUnit": "px",
+              "heightUnit": "px",
+              "children": [],
+              "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE",
+              "hiddenFlagType": "literal",
+              "clickableFlag": true,
+              "clickableFlagType": "literal",
+              "flagScrollbarMode": "",
+              "flagScrollDirection": "",
+              "scrollSnapX": "",
+              "scrollSnapY": "",
+              "checkedStateType": "literal",
+              "disabledStateType": "literal",
+              "states": "",
+              "localStyles": {
+                "objID": "12a4426a-af71-c1d1-327a-f7ad4518e68d"
+              },
+              "group": "",
+              "groupIndex": 0,
+              "userWidgetPageName": "AlarmRibbon",
+              "userPropertyValues": {
+                "objID": "d6184806-f4dc-76c5-884e-15d350817fb0",
                 "values": {}
               }
             }
