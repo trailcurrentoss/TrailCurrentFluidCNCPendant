@@ -323,9 +323,13 @@ esp_err_t fluidnc_job_stop(void)
     return ESP_OK;
 }
 
-esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min, float max_travel_mm)
+esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min,
+                        float max_travel_mm, float xy_travel_mm,
+                        float edge_depth_mm, float tool_dia_mm,
+                        float edge_thick_mm)
 {
     (void)plate_thickness_mm; (void)feed_mm_min; (void)max_travel_mm;
+    (void)xy_travel_mm; (void)edge_depth_mm; (void)tool_dia_mm; (void)edge_thick_mm;
     ESP_LOGI(TAG, "probe (mock) type=%d", type);
     return ESP_OK;
 }

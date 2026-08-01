@@ -66,7 +66,11 @@ enum FlowGlobalVariables {
     FLOW_GLOBAL_VARIABLE_SELECTED_THEME = 46,
     FLOW_GLOBAL_VARIABLE_BATTERY_PCT = 47,
     FLOW_GLOBAL_VARIABLE_BATTERY_CHARGING = 48,
-    FLOW_GLOBAL_VARIABLE_BATTERY_VISIBLE = 49
+    FLOW_GLOBAL_VARIABLE_BATTERY_VISIBLE = 49,
+    FLOW_GLOBAL_VARIABLE_PROBE_XY_TRAVEL = 50,
+    FLOW_GLOBAL_VARIABLE_PROBE_EDGE_DEPTH = 51,
+    FLOW_GLOBAL_VARIABLE_PROBE_TOOL_DIA = 52,
+    FLOW_GLOBAL_VARIABLE_PROBE_EDGE_THICK = 53
 };
 
 // Native global variables
@@ -171,6 +175,14 @@ extern bool get_var_battery_charging();
 extern void set_var_battery_charging(bool value);
 extern bool get_var_battery_visible();
 extern void set_var_battery_visible(bool value);
+extern const char *get_var_probe_xy_travel();
+extern void set_var_probe_xy_travel(const char *value);
+extern const char *get_var_probe_edge_depth();
+extern void set_var_probe_edge_depth(const char *value);
+extern const char *get_var_probe_tool_dia();
+extern void set_var_probe_tool_dia(const char *value);
+extern const char *get_var_probe_edge_thick();
+extern void set_var_probe_edge_thick(const char *value);
 
 
 #ifdef __cplusplus

@@ -370,6 +370,14 @@ void action_probe_edit_field(lv_event_t *e)
              current    = get_var_probe_feed();            break;
     case 2:  label_text = "Max travel (mm)";
              current    = get_var_probe_max_travel();      break;
+    case 3:  label_text = "XY travel - outward move before edge probe (mm)";
+             current    = get_var_probe_xy_travel();       break;
+    case 4:  label_text = "Edge probe depth below stock top (mm)";
+             current    = get_var_probe_edge_depth();      break;
+    case 5:  label_text = "Tool diameter (mm)";
+             current    = get_var_probe_tool_dia();        break;
+    case 6:  label_text = "Edge thickness - 0 for bare stock (mm)";
+             current    = get_var_probe_edge_thick();      break;
     default: return;
     }
     s_probe_edit_field = ud;
@@ -394,6 +402,10 @@ void action_probe_edit_done(lv_event_t *e)
     case 0: set_var_probe_plate_thickness(val); nvs_key = "p_plate";  break;
     case 1: set_var_probe_feed(val);            nvs_key = "p_feed";   break;
     case 2: set_var_probe_max_travel(val);      nvs_key = "p_travel"; break;
+    case 3: set_var_probe_xy_travel(val);       nvs_key = "p_xytrav"; break;
+    case 4: set_var_probe_edge_depth(val);      nvs_key = "p_depth";  break;
+    case 5: set_var_probe_tool_dia(val);        nvs_key = "p_tooldia";break;
+    case 6: set_var_probe_edge_thick(val);      nvs_key = "p_edgethk";break;
     default: break;
     }
     /* Persist so the user doesn't have to re-type after every reboot.
@@ -423,10 +435,20 @@ void action_probe_start(lv_event_t *e)
     float plate  = atof(get_var_probe_plate_thickness());
     float feed   = atof(get_var_probe_feed());
     float travel = atof(get_var_probe_max_travel());
-    if (plate  <= 0.0f) plate  = 19.0f;
+    if (plate  <  0.0f) plate  = 0.0f;    /* 0 = probing bare stock */
     if (feed   <= 0.0f) feed   = 100.0f;
     if (travel <= 0.0f) travel = 25.0f;
-    fluidnc_probe(s_probe_type_idx, plate, feed, travel);
+    /* Corner-cycle geometry (row 2 of the info tiles). edge_thick 0 is
+     * valid (bare conductive stock); the others must be positive. */
+    float xy    = atof(get_var_probe_xy_travel());
+    float depth = atof(get_var_probe_edge_depth());
+    float dia   = atof(get_var_probe_tool_dia());
+    float thk   = atof(get_var_probe_edge_thick());
+    if (xy    <= 0.0f) xy    = 20.0f;
+    if (depth <= 0.0f) depth = 5.0f;
+    if (dia   <= 0.0f) dia   = 6.35f;
+    if (thk   <  0.0f) thk   = 0.0f;
+    fluidnc_probe(s_probe_type_idx, plate, feed, travel, xy, depth, dia, thk);
 }
 
 /* ---------- Macros ---------- */

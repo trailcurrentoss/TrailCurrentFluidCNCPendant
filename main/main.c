@@ -104,6 +104,23 @@ static void restore_user_settings_from_nvs(void)
         set_var_probe_max_travel(buf);
         ESP_LOGI(TAG, "restored probe travel=%s", buf);
     }
+    /* Corner-probe geometry (row 2 tiles). */
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_xytrav", buf, &len) == ESP_OK) {
+        set_var_probe_xy_travel(buf);
+    }
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_depth", buf, &len) == ESP_OK) {
+        set_var_probe_edge_depth(buf);
+    }
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_tooldia", buf, &len) == ESP_OK) {
+        set_var_probe_tool_dia(buf);
+    }
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_edgethk", buf, &len) == ESP_OK) {
+        set_var_probe_edge_thick(buf);
+    }
 
     nvs_close(nvs);
 }

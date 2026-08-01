@@ -127,7 +127,25 @@ esp_err_t fluidnc_job_start(const char *file_name);
 esp_err_t fluidnc_job_stop(void);
 
 /* Probe cycles. type 0=Z touch-off, 1=corner, 2=center, 3=tool length. */
-esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min, float max_travel_mm);
+/* Run a probe cycle.
+ *   type 0 — Z touch-off: probe down, set work Z = plate thickness, lift.
+ *   type 1 — front-left corner XYZ: Z touch-off first, then probe the X and
+ *            Y edges from outside the stock and set work X0/Y0 at the
+ *            corner. Extra geometry:
+ *              xy_travel_mm  — outward move past each edge before plunging
+ *                              (must clear any plate overhang)
+ *              edge_depth_mm — plunge below the stock top so the tool FLANK
+ *                              contacts the wall
+ *              tool_dia_mm   — probe stops at flank contact; the edge is
+ *                              half a diameter from the tool center
+ *              edge_thick_mm — side-wall thickness of a corner plate;
+ *                              0 when probing bare conductive stock
+ *   types 2/3 — not yet implemented.
+ * The Z-only cycle ignores the last four parameters. */
+esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min,
+                        float max_travel_mm, float xy_travel_mm,
+                        float edge_depth_mm, float tool_dia_mm,
+                        float edge_thick_mm);
 
 /* Send a raw line of g-code (used by macros). */
 esp_err_t fluidnc_send_line(const char *line);

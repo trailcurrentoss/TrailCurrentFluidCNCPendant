@@ -70,6 +70,8 @@ static struct {
     bool     flood_on, mist_on;
 
     char     probe_plate_thickness[12], probe_feed[12], probe_max_travel[12];
+    char     probe_xy_travel[12], probe_edge_depth[12],
+             probe_tool_dia[12], probe_edge_thick[12];
 
     char     fw_version[24], controller_info[40], ui_info[40], net_info[40];
 
@@ -117,6 +119,11 @@ static struct {
     .probe_plate_thickness = "19.00",
     .probe_feed            = "100",
     .probe_max_travel      = "25",
+    /* Corner-probe geometry — see fluidnc_probe() for how each is used. */
+    .probe_xy_travel       = "20",
+    .probe_edge_depth      = "5.0",
+    .probe_tool_dia        = "6.35",
+    .probe_edge_thick      = "0",
     .fw_version            = "(controller offline)",
     .controller_info       = "(controller offline)",
     .ui_info               = "LVGL 8.4 . 1024x600",
@@ -635,6 +642,25 @@ void        set_var_probe_max_travel(const char *v)
     }
     bsp_display_unlock();
 }
+
+/* Corner-probe geometry vars — same string-backed pattern as the three
+ * above (display string is the source of truth; atof() at probe time). */
+#define PROBE_STR_VAR(name, obj_field)                                        \
+    const char *get_var_##name(void) { return s_v.name; }                     \
+    void        set_var_##name(const char *v)                                 \
+    {                                                                         \
+        bsp_display_lock(0);                                                  \
+        strlcpy(s_v.name, v ? v : "", sizeof(s_v.name));                      \
+        if (objects.obj_field) {                                              \
+            lv_label_set_text(objects.obj_field, s_v.name);                   \
+        }                                                                     \
+        bsp_display_unlock();                                                 \
+    }
+
+PROBE_STR_VAR(probe_xy_travel,  probe_info_xytravel_val)
+PROBE_STR_VAR(probe_edge_depth, probe_info_depth_val)
+PROBE_STR_VAR(probe_tool_dia,   probe_info_tooldia_val)
+PROBE_STR_VAR(probe_edge_thick, probe_info_edgethk_val)
 
 /* --- System info -------------------------------------------------------- */
 VAR_STRING(fw_version,      fw_version)

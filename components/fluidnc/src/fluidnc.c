@@ -926,13 +926,18 @@ esp_err_t fluidnc_job_stop(void)
     return e;
 }
 
-esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min, float max_travel_mm)
+esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min,
+                        float max_travel_mm, float xy_travel_mm,
+                        float edge_depth_mm, float tool_dia_mm,
+                        float edge_thick_mm)
 {
-    /* Type 0 = Z touch-off: probe down, set Z to plate thickness, lift.
-     * Types 1/2/3 (corner / center / tool) are full macros and will land in
-     * Piece D's "real macro library" once the cycle UI is fleshed out. */
-    char buf[160];
+    /* Types 2/3 (center / tool) are still future macros. Every implemented
+     * cycle is emitted as ONE queued line sequence: on success it executes
+     * in order; a failed G38.2 alarms out and the controller rejects the
+     * queued remainder (error:9) — which is exactly the safe behavior. */
+    char buf[512];
     int len = 0;
+    jog_flush_for_command();   /* G38.2 is rejected (error:9) mid-jog */
     switch (type) {
     case 0: {
         /* Probe DOWN by max_travel from the CURRENT work Z.
@@ -959,6 +964,59 @@ esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min, f
         snprintf(b, sizeof(b), "G10 L20 P0 Z%.3f\n",   plate_thickness_mm);
         snprintf(c, sizeof(c), "G0 Z%.3f\n",           plate_thickness_mm + 5.0f);
         len = snprintf(buf, sizeof(buf), "%s%s%s", a, b, c);
+        break;
+    }
+    case 1: {
+        /* Front-left corner XYZ. Start with the tool above the corner
+         * (over the touch plate if one is used). Sequence: Z touch-off
+         * exactly like type 0; lift; move out past the X edge; plunge
+         * below the stock top; probe back in — at contact the edge is
+         * half a tool diameter (plus any plate side-wall) from the tool
+         * center; set X0 at the edge; repeat for Y; park at X0 Y0.
+         *
+         * The two G10 frame shifts happen mid-sequence, so every target
+         * after a shift is authored in the NEW frame (small constants
+         * around the just-set zero) — never carried over from the old
+         * frame. Targets before each shift use the cached start position. */
+        status_lock();
+        float x0 = s_status.wpos.x, y0 = s_status.wpos.y, z0 = s_status.wpos.z;
+        status_unlock();
+        float r    = tool_dia_mm * 0.5f + edge_thick_mm;
+        float lift = plate_thickness_mm + 5.0f;
+        len = snprintf(buf, sizeof(buf),
+            "G21 G38.2 Z%.3f F%.1f\n"   /* touch down on plate/stock     */
+            "G10 L20 P0 Z%.3f\n"        /* work Z = plate thickness      */
+            "G0 Z%.3f\n"                /* lift clear                    */
+            "G0 X%.3f\n"                /* out past the X edge           */
+            "G0 Z%.3f\n"                /* plunge below stock top        */
+            "G38.2 X%.3f F%.1f\n"       /* probe back toward the stock   */
+            "G10 L20 P0 X%.3f\n"        /* edge = X0 (tool center at -r) */
+            "G0 X%.3f\n"                /* retract off the wall          */
+            "G0 Z%.3f\n"                /* lift                          */
+            "G0 X%.3f\n"                /* inboard, clear of the X edge  */
+            "G0 Y%.3f\n"                /* out past the Y edge           */
+            "G0 Z%.3f\n"                /* plunge                        */
+            "G38.2 Y%.3f F%.1f\n"       /* probe back toward the stock   */
+            "G10 L20 P0 Y%.3f\n"        /* edge = Y0                     */
+            "G0 Y%.3f\n"                /* retract                       */
+            "G0 Z%.3f\n"                /* lift                          */
+            "G0 X0 Y0\n",               /* park over the corner          */
+            z0 - max_travel_mm, feed_mm_min,
+            plate_thickness_mm,
+            lift,
+            x0 - xy_travel_mm,
+            -edge_depth_mm,
+            x0 + r + 2.0f, feed_mm_min,
+            -r,
+            -(r + 4.0f),
+            lift,
+            r + 8.0f,
+            y0 - xy_travel_mm,
+            -edge_depth_mm,
+            y0 + r + 2.0f, feed_mm_min,
+            -r,
+            -(r + 4.0f),
+            lift);
         break;
     }
     default:
