@@ -441,6 +441,25 @@ static void handle_line(const char *line)
         notify();
         break;
     }
+    case FLUIDNC_RX_INFO: {
+        /* FluidNC 4 ends an $SD/List with a bare bracketed summary —
+         * "[/sd/ Free:28.95 GB Used:3.38 MB Total:28.96 GB]" — with no
+         * "MSG:" prefix, so it classifies as INFO and previously fell
+         * through to the debug log while the storage tile showed a dash.
+         * The capacity parser is format-agnostic (Total:/Used: + unit
+         * suffixes); it just needed to be handed the line. */
+        uint64_t t = s_sd_total_bytes, u = s_sd_used_bytes;
+        if (fluidnc_proto_parse_storage_info(line, &t, &u)) {
+            status_lock();
+            if (t) s_sd_total_bytes = t;
+            s_sd_used_bytes = u;
+            s_sd_info_valid = true;
+            status_unlock();
+            s_files_seq++;
+            notify();
+        }
+        break;
+    }
     default:
         if (line[0]) ESP_LOGD(TAG, "RX: %s", line);
         break;

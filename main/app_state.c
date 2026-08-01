@@ -476,7 +476,9 @@ static void refresh_files_display_locked(void)
             }
             lv_label_set_text(objects.files_stg_val, buf);
         } else {
-            lv_label_set_text(objects.files_stg_val, "—");
+            /* ASCII hyphen — the em-dash isn't in Montserrat's subset and
+             * rendered as an empty box. */
+            lv_label_set_text(objects.files_stg_val, "-");
         }
     }
     if (objects.files_stg_bar) {
