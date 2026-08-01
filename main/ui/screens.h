@@ -171,7 +171,6 @@ typedef struct _objects_t {
     lv_obj_t *page_dashboard_status_bar__status_pill_label;
     lv_obj_t *page_dashboard_status_bar__status_wcs;
     lv_obj_t *page_dashboard_status_bar__status_wifi_icon;
-    lv_obj_t *page_dashboard_status_bar__status_clock;
     lv_obj_t *page_dashboard_status_bar__status_btn_hold;
     lv_obj_t *page_dashboard_status_bar__status_hold_icon;
     lv_obj_t *page_dashboard_status_bar__status_hold_label;
@@ -291,7 +290,6 @@ typedef struct _objects_t {
     lv_obj_t *page_jog_status_bar__status_pill_label;
     lv_obj_t *page_jog_status_bar__status_wcs;
     lv_obj_t *page_jog_status_bar__status_wifi_icon;
-    lv_obj_t *page_jog_status_bar__status_clock;
     lv_obj_t *page_jog_status_bar__status_btn_hold;
     lv_obj_t *page_jog_status_bar__status_hold_icon;
     lv_obj_t *page_jog_status_bar__status_hold_label;
@@ -425,7 +423,6 @@ typedef struct _objects_t {
     lv_obj_t *page_run_status_bar__status_pill_label;
     lv_obj_t *page_run_status_bar__status_wcs;
     lv_obj_t *page_run_status_bar__status_wifi_icon;
-    lv_obj_t *page_run_status_bar__status_clock;
     lv_obj_t *page_run_status_bar__status_btn_hold;
     lv_obj_t *page_run_status_bar__status_hold_icon;
     lv_obj_t *page_run_status_bar__status_hold_label;
@@ -567,7 +564,6 @@ typedef struct _objects_t {
     lv_obj_t *page_files_status_bar__status_pill_label;
     lv_obj_t *page_files_status_bar__status_wcs;
     lv_obj_t *page_files_status_bar__status_wifi_icon;
-    lv_obj_t *page_files_status_bar__status_clock;
     lv_obj_t *page_files_status_bar__status_btn_hold;
     lv_obj_t *page_files_status_bar__status_hold_icon;
     lv_obj_t *page_files_status_bar__status_hold_label;
@@ -648,7 +644,6 @@ typedef struct _objects_t {
     lv_obj_t *page_spindle_status_bar__status_pill_label;
     lv_obj_t *page_spindle_status_bar__status_wcs;
     lv_obj_t *page_spindle_status_bar__status_wifi_icon;
-    lv_obj_t *page_spindle_status_bar__status_clock;
     lv_obj_t *page_spindle_status_bar__status_btn_hold;
     lv_obj_t *page_spindle_status_bar__status_hold_icon;
     lv_obj_t *page_spindle_status_bar__status_hold_label;
@@ -735,7 +730,6 @@ typedef struct _objects_t {
     lv_obj_t *page_probe_status_bar__status_pill_label;
     lv_obj_t *page_probe_status_bar__status_wcs;
     lv_obj_t *page_probe_status_bar__status_wifi_icon;
-    lv_obj_t *page_probe_status_bar__status_clock;
     lv_obj_t *page_probe_status_bar__status_btn_hold;
     lv_obj_t *page_probe_status_bar__status_hold_icon;
     lv_obj_t *page_probe_status_bar__status_hold_label;
@@ -855,7 +849,6 @@ typedef struct _objects_t {
     lv_obj_t *page_macros_status_bar__status_pill_label;
     lv_obj_t *page_macros_status_bar__status_wcs;
     lv_obj_t *page_macros_status_bar__status_wifi_icon;
-    lv_obj_t *page_macros_status_bar__status_clock;
     lv_obj_t *page_macros_status_bar__status_btn_hold;
     lv_obj_t *page_macros_status_bar__status_hold_icon;
     lv_obj_t *page_macros_status_bar__status_hold_label;
@@ -944,7 +937,6 @@ typedef struct _objects_t {
     lv_obj_t *page_settings_status_bar__status_pill_label;
     lv_obj_t *page_settings_status_bar__status_wcs;
     lv_obj_t *page_settings_status_bar__status_wifi_icon;
-    lv_obj_t *page_settings_status_bar__status_clock;
     lv_obj_t *page_settings_status_bar__status_btn_hold;
     lv_obj_t *page_settings_status_bar__status_hold_icon;
     lv_obj_t *page_settings_status_bar__status_hold_label;

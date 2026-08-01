@@ -303,7 +303,7 @@
         "objID": "271cdaf7-7f28-de35-3dea-106e7d1bfcf0",
         "name": "job_file",
         "type": "string",
-        "defaultValue": "\"\u2014\"",
+        "defaultValue": "\"—\"",
         "persistent": false,
         "native": false
       },
@@ -447,7 +447,7 @@
         "objID": "3105ca2f-a9bd-d30b-310a-bb50daf92315",
         "name": "net_info",
         "type": "string",
-        "defaultValue": "\"\u2014\"",
+        "defaultValue": "\"—\"",
         "persistent": false,
         "native": false
       },
@@ -34717,60 +34717,6 @@
               "group": "",
               "groupIndex": 0,
               "text": "\\uf1eb",
-              "textType": "literal",
-              "longMode": "WRAP",
-              "recolor": false
-            },
-            {
-              "objID": "3f126852-930f-de5b-39cf-b1a51e998fd0",
-              "type": "LVGLLabelWidget",
-              "left": 688,
-              "top": 16,
-              "width": 56,
-              "height": 14,
-              "customInputs": [],
-              "customOutputs": [],
-              "style": {
-                "objID": "406ac0b4-afd7-5dea-5a96-8afcf50b951e",
-                "useStyle": "default",
-                "conditionalStyles": [],
-                "childStyles": []
-              },
-              "timeline": [],
-              "eventHandlers": [],
-              "identifier": "status_clock",
-              "leftUnit": "px",
-              "topUnit": "px",
-              "widthUnit": "px",
-              "heightUnit": "px",
-              "children": [],
-              "widgetFlags": "",
-              "hiddenFlagType": "literal",
-              "clickableFlag": false,
-              "clickableFlagType": "literal",
-              "flagScrollbarMode": "",
-              "flagScrollDirection": "",
-              "scrollSnapX": "",
-              "scrollSnapY": "",
-              "checkedState": false,
-              "checkedStateType": "literal",
-              "disabledStateType": "literal",
-              "states": "",
-              "useStyle": "LabelSecondary",
-              "localStyles": {
-                "objID": "fbfcfbfa-1cb9-997e-8c50-40fe99a41fca",
-                "definition": {
-                  "MAIN": {
-                    "DEFAULT": {
-                      "text_font": "mono_13",
-                      "text_align": "RIGHT"
-                    }
-                  }
-                }
-              },
-              "group": "",
-              "groupIndex": 0,
-              "text": "14:32",
               "textType": "literal",
               "longMode": "WRAP",
               "recolor": false

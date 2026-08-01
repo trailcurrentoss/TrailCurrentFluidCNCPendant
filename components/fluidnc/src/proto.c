@@ -146,7 +146,19 @@ bool fluidnc_proto_parse_file_entry(const char *line, char *name, size_t name_ma
     }
 
     if (size_bytes) {
-        *size_bytes = (bar && bar < end) ? (uint32_t)strtoul(bar + 1, NULL, 10) : 0;
+        *size_bytes = 0;
+        if (bar && bar < end) {
+            /* FluidNC lists entries as "[FILE: name.nc|SIZE:684]" — the
+             * literal "SIZE:" prefix made a bare strtoul() read 0 for
+             * every file. Skip it (case-insensitive) when present. */
+            const char *sz = bar + 1;
+            while (*sz == ' ') sz++;
+            if (strncasecmp(sz, "SIZE", 4) == 0) {
+                sz += 4;
+                while (*sz == ':' || *sz == ' ') sz++;
+            }
+            *size_bytes = (uint32_t)strtoul(sz, NULL, 10);
+        }
     }
     return true;
 }
@@ -268,6 +280,24 @@ bool fluidnc_proto_parse_status(const char *line, fluidnc_status_report_t *out)
                 float v[3] = {0};
                 int n = parse_floats(val, v, 3);
                 if (n == 3) { out->has_wco = true; out->ox = v[0]; out->oy = v[1]; out->oz = v[2]; }
+            } else if (key_len == 2 && strncmp(p, "SD", 2) == 0) {
+                /* "SD:45.5" or "SD:45.5,/sd/jobs/part.nc" */
+                char *after = NULL;
+                out->sd_pct = strtof(val, &after);
+                out->has_sd = true;
+                out->sd_file[0] = '\0';
+                if (after && *after == ',') {
+                    after++;
+                    /* Basename only, stop at the field/report terminator. */
+                    const char *end2 = after;
+                    while (*end2 && *end2 != '|' && *end2 != '>') end2++;
+                    const char *base = end2;
+                    while (base > after && base[-1] != '/') base--;
+                    size_t n2 = (size_t)(end2 - base);
+                    if (n2 >= sizeof(out->sd_file)) n2 = sizeof(out->sd_file) - 1;
+                    memcpy(out->sd_file, base, n2);
+                    out->sd_file[n2] = '\0';
+                }
             } else if (key_len == 2 && strncmp(p, "FS", 2) == 0) {
                 int v[2] = {0};
                 int n = parse_ints(val, v, 2);

@@ -64,6 +64,13 @@ typedef struct {
     bool   has_pn;
     bool   pn_probe;
     bool   pn_lim_x, pn_lim_y, pn_lim_z;
+
+    /* SD job progress — FluidNC appends "|SD:nn.nn" (percent of file bytes
+     * fed to the planner) while an SD job runs; some builds append
+     * ",/sd/path" after the percent. Absent when no job is running. */
+    bool   has_sd;
+    float  sd_pct;
+    char   sd_file[64];   /* basename, empty if the report carried none */
 } fluidnc_status_report_t;
 
 /* Parse a status report line (must begin with '<' and end with '>') into out.

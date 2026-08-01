@@ -240,6 +240,26 @@ static void apply_status_report(const fluidnc_status_report_t *r)
         s_home_cmd_us = 0;
     }
 
+    /* SD job progress — the "|SD:nn.nn" status field is the controller's
+     * own ground truth for a running job (percent of file bytes consumed).
+     * Previously nothing consumed it: the pendant set pct=0 at job start
+     * and the bar never moved. The field also lets us DETECT jobs started
+     * elsewhere (WebUI) and notice completion (field disappears). */
+    if (r->has_sd) {
+        s_status.job_running      = true;
+        s_status.job_progress_pct = r->sd_pct;
+        if (r->sd_file[0]) {
+            strlcpy(s_status.job_file, r->sd_file, sizeof(s_status.job_file));
+        }
+    } else if (s_status.job_running &&
+               (r->state == FLUIDNC_STATE_IDLE || r->state == FLUIDNC_STATE_ALARM)) {
+        /* Field gone + machine settled = the job ended (finished, errored,
+         * or was cancelled). Snap a clean 100 % only for the finished case
+         * — a job that ends near-complete reads as done. */
+        if (s_status.job_progress_pct > 97.0f) s_status.job_progress_pct = 100.0f;
+        s_status.job_running = false;
+    }
+
     if (r->has_mpos) {
         s_status.mpos.x = r->mx; s_status.mpos.y = r->my; s_status.mpos.z = r->mz;
     }
