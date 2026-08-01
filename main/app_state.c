@@ -6,6 +6,7 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_netif.h"
 #include "lvgl.h"
 
 #include "bsp/display.h"
@@ -235,6 +236,9 @@ static void on_wifi_state(wifi_setup_state_t st, void *ctx)
     case WIFI_SETUP_STATE_CONNECTED:
 #if HAVE_UI
         wifi_ui_set_status_icon(true);
+        /* The Network row is owned by wifi_ui_refresh_connection_display_
+         * locked(), invoked above for every state change — don't write it
+         * here too. */
 #endif
         /* WiFi just came up. Skip the FluidConnect onboarding screen — the
          * user reaches it via Settings → Machine → "Configure FluidNC
@@ -553,6 +557,14 @@ void app_state_paint_initial_state(void)
     set_var_rapid_ov_pct(get_var_rapid_ov_pct());
     set_var_spindle_ov_pct(get_var_spindle_ov_pct());
 
+    /* Settings → System rows — push the vars.c defaults over the authored
+     * placeholder text so the page never shows stale .eez-project copy. */
+    set_var_fw_version(get_var_fw_version());
+    set_var_controller_info(get_var_controller_info());
+    set_var_ui_info(get_var_ui_info());
+    /* Network row: owned by wifi_ui_refresh_connection_display_locked(),
+     * whose "Disconnected" idle wording matches the authored placeholder. */
+
     /* Empty file list (none refreshed from controller yet). */
     app_state_refresh_files_display();
 
@@ -753,6 +765,24 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
     set_var_active_wcs(st->wcs);
     set_var_units_label(st->units_inch ? "in" : "mm");
     set_var_hold_label(st->state == FLUIDNC_STATE_HOLD ? "RESUME" : "HOLD");
+
+    /* Settings → System rows. Firmware comes from the controller's banner /
+     * $I reply once it has identified itself; the controller row tracks the
+     * live transport state. */
+    if (st->fw_version[0]) set_var_fw_version(st->fw_version);
+    if (st->state == FLUIDNC_STATE_DISCONNECTED) {
+        set_var_controller_info("(controller offline)");
+    } else {
+        const pendant_config_t *pc = pendant_config_get();
+        char cbuf[40];
+        if (pc->fluid_transport == PENDANT_TRANSPORT_UART) {
+            snprintf(cbuf, sizeof(cbuf), "Serial UART");
+        } else {
+            snprintf(cbuf, sizeof(cbuf), "Telnet %s:%u",
+                     pc->fluid_host, (unsigned)pc->fluid_port);
+        }
+        set_var_controller_info(cbuf);
+    }
 
     /* DRO labels — work + machine + mini all driven from the same values. */
     char buf[16];

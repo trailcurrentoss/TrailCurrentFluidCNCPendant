@@ -393,11 +393,28 @@ static void handle_line(const char *line)
         /* Subdirectories not exposed by the pendant UI yet — log and skip. */
         ESP_LOGD(TAG, "DIR: %s", line);
         break;
-    case FLUIDNC_RX_WELCOME:
+    case FLUIDNC_RX_WELCOME: {
         ESP_LOGI(TAG, "controller: %s", line);
-        /* Some welcome banners imply the link is alive even before a status
-         * reply lands; treat as a hint that the controller is ready. */
+        /* Capture the firmware identity for the Settings → System page.
+         * Reaches here for both the boot banner ("Grbl 4.0 [FluidNC
+         * v4.0.1 (wifi) '$' for help]") and the [VER:3.0 FluidNC
+         * v4.0.1:] reply to the connect-time $I probe — the classifier
+         * matches any line containing "FluidNC". Trim to the readable
+         * core: "FluidNC v4.0.1 (wifi)". */
+        char fw[sizeof(s_status.fw_version)];
+        const char *p = strstr(line, "FluidNC");
+        strlcpy(fw, p ? p : line, sizeof(fw));
+        char *cut;
+        if ((cut = strstr(fw, " '$'")) != NULL) *cut = '\0';
+        if ((cut = strchr(fw, ']'))   != NULL) *cut = '\0';
+        size_t n = strlen(fw);
+        while (n && (fw[n - 1] == ':' || fw[n - 1] == ' ')) fw[--n] = '\0';
+        status_lock();
+        strlcpy(s_status.fw_version, fw, sizeof(s_status.fw_version));
+        status_unlock();
+        notify();
         break;
+    }
     default:
         if (line[0]) ESP_LOGD(TAG, "RX: %s", line);
         break;

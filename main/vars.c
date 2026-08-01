@@ -73,7 +73,7 @@ static struct {
     char     probe_xy_travel[12], probe_edge_depth[12],
              probe_tool_dia[12], probe_edge_thick[12];
 
-    char     fw_version[24], controller_info[40], ui_info[40], net_info[40];
+    char     fw_version[40], controller_info[40], ui_info[40], net_info[40];
 
     int32_t  screen_brightness;
     int32_t  screen_timeout_value;
@@ -663,10 +663,26 @@ PROBE_STR_VAR(probe_tool_dia,   probe_info_tooldia_val)
 PROBE_STR_VAR(probe_edge_thick, probe_info_edgethk_val)
 
 /* --- System info -------------------------------------------------------- */
-VAR_STRING(fw_version,      fw_version)
-VAR_STRING(controller_info, controller_info)
-VAR_STRING(ui_info,         ui_info)
-VAR_STRING(net_info,        net_info)
+/* Settings → System rows. These were plain VAR_STRINGs (store-only, no
+ * paint) — the page permanently showed its authored placeholders even
+ * once the controller had identified itself. Each setter now also paints
+ * its label. */
+#define SYS_STR_VAR(NAME, OBJ)                                                \
+    const char *get_var_##NAME(void) { return s_v.NAME; }                     \
+    void        set_var_##NAME(const char *v)                                 \
+    {                                                                         \
+        bsp_display_lock(0);                                                  \
+        strlcpy(s_v.NAME, v ? v : "", sizeof(s_v.NAME));                      \
+        if (objects.settings_sys_##OBJ##_val) {                               \
+            lv_label_set_text(objects.settings_sys_##OBJ##_val, s_v.NAME);    \
+        }                                                                     \
+        bsp_display_unlock();                                                 \
+    }
+
+SYS_STR_VAR(fw_version,      fw)
+SYS_STR_VAR(controller_info, ctl)
+SYS_STR_VAR(ui_info,         ui)
+SYS_STR_VAR(net_info,        net)
 
 /* --- Display / motion preferences (persisted in NVS by actions.c) ------ */
 /* These overlay the macro-generated bodies because each setter also writes

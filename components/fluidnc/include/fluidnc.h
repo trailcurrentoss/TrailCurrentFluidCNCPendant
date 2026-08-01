@@ -57,6 +57,10 @@ typedef struct {
     bool            flood;
     bool            mist;
     bool            probe_active;   /* GRBL Pn:P — probe pin currently asserted */
+    /* Controller firmware, captured from the boot banner ("Grbl 4.0
+     * [FluidNC v4.0.1 ...]") or the $I probe's [VER:...] reply. Empty
+     * until the controller has identified itself. */
+    char            fw_version[40];
     char            alarm_text[96];
     /* Current job */
     char            job_file[64];
