@@ -534,7 +534,6 @@ void app_state_paint_initial_state(void)
     set_var_active_wcs(get_var_active_wcs());
     set_var_units_label(get_var_units_label());
     set_var_hold_label(get_var_hold_label());
-    set_var_clock_text(get_var_clock_text());
 
     /* DRO labels (work + machine + mini, all 0.000 by default). */
     set_var_work_dro_x(get_var_work_dro_x());

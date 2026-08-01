@@ -49,7 +49,6 @@ static struct {
     char     machine_state[12];
     char     active_wcs[8];
     char     mini_dro_x[16], mini_dro_y[16], mini_dro_z[16];
-    char     clock_text[12];
     char     hold_label[12];
 
     char     alarm_text[96];
@@ -114,7 +113,6 @@ static struct {
     .job_elapsed   = "--:--",
     .job_eta       = "--:--",
     .hold_label    = "HOLD",
-    .clock_text    = "--:--",
     .spindle_target= 0,                 /* user can dial this up in the Spindle page */
     .probe_plate_thickness = "19.00",
     .probe_feed            = "100",
@@ -286,14 +284,8 @@ void        set_var_mini_dro_z(const char *v)
     bsp_display_unlock();
 }
 
-const char *get_var_clock_text(void) { return s_v.clock_text; }
-void        set_var_clock_text(const char *v)
-{
-    bsp_display_lock(0);
-    strlcpy(s_v.clock_text, v ? v : "", sizeof(s_v.clock_text));
-    STATUSBAR_FANOUT_TEXT(status_clock, s_v.clock_text);
-    bsp_display_unlock();
-}
+/* clock_text removed 2026-08-01 along with the StatusBar clock widget —
+ * the pendant has no RTC/NTP source, so it only ever displayed "--:--". */
 
 const char *get_var_hold_label(void) { return s_v.hold_label; }
 void        set_var_hold_label(const char *v)

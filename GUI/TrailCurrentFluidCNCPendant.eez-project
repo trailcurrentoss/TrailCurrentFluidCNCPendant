@@ -196,14 +196,6 @@
         "native": false
       },
       {
-        "objID": "d200b7ce-5879-d3c3-048b-0bd420a5cbe9",
-        "name": "clock_text",
-        "type": "string",
-        "defaultValue": "\"14:32\"",
-        "persistent": false,
-        "native": false
-      },
-      {
         "objID": "151f9934-a339-c693-76cd-6859cb257d1c",
         "name": "hold_label",
         "type": "string",
@@ -303,7 +295,7 @@
         "objID": "271cdaf7-7f28-de35-3dea-106e7d1bfcf0",
         "name": "job_file",
         "type": "string",
-        "defaultValue": "\"—\"",
+        "defaultValue": "\"\u2014\"",
         "persistent": false,
         "native": false
       },
@@ -447,7 +439,7 @@
         "objID": "3105ca2f-a9bd-d30b-310a-bb50daf92315",
         "name": "net_info",
         "type": "string",
-        "defaultValue": "\"—\"",
+        "defaultValue": "\"\u2014\"",
         "persistent": false,
         "native": false
       },
