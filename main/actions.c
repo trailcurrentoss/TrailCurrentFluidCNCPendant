@@ -277,7 +277,9 @@ void action_file_refresh(lv_event_t *e)
 {
     (void)e;
     fluidnc_refresh_files();
-    app_state_refresh_files_display();
+    /* Show the loading state immediately — the real list will land when
+     * the dispatcher bumps files_seq after the `ok` arrives. */
+    app_state_files_show_loading();
 }
 
 /* ---------- Spindle ---------- *
@@ -383,11 +385,25 @@ void action_probe_edit_done(lv_event_t *e)
     const char *val = lv_textarea_get_text(objects.probe_edit_input);
     if (!val) val = "";
 
+    const char *nvs_key = NULL;
     switch (s_probe_edit_field) {
-    case 0: set_var_probe_plate_thickness(val); break;
-    case 1: set_var_probe_feed(val);            break;
-    case 2: set_var_probe_max_travel(val);      break;
+    case 0: set_var_probe_plate_thickness(val); nvs_key = "p_plate";  break;
+    case 1: set_var_probe_feed(val);            nvs_key = "p_feed";   break;
+    case 2: set_var_probe_max_travel(val);      nvs_key = "p_travel"; break;
     default: break;
+    }
+    /* Persist so the user doesn't have to re-type after every reboot.
+     * Stored as a string so we don't have to round-trip through atof()
+     * (and lose precision / formatting) on restore — set_var_*() already
+     * accepts a string for both display and the parse-time atof() that
+     * action_probe_start does. */
+    if (nvs_key) {
+        nvs_handle_t nvs;
+        if (nvs_open(USER_SETTINGS_NVS_NAMESPACE, NVS_READWRITE, &nvs) == ESP_OK) {
+            nvs_set_str(nvs, nvs_key, val);
+            nvs_commit(nvs);
+            nvs_close(nvs);
+        }
     }
     probe_edit_hide_locked();
 }
@@ -582,15 +598,16 @@ void action_wifi_skip_to_serial(lv_event_t *e)
 }
 
 /* ---------- FluidNC connection ---------- */
+/* Two-option selector: userData carries the pendant_transport_t value
+ * (0 = UART, 2 = Telnet). WebSocket (1) is retired — its button is gone
+ * from the page and pendant_config migrates any stored value. */
 void action_set_fluid_transport(lv_event_t *e)
 {
     int ud = evt_user_data(e);
-    lv_obj_t *const tports[] = {
-        objects.fluid_tport_0, objects.fluid_tport_1, objects.fluid_tport_2,
-    };
-    if (ud >= 0 && ud < (int)(sizeof(tports)/sizeof(*tports))) {
-        selector_swap(tports[ud], tports, sizeof(tports)/sizeof(*tports));
-    }
+    lv_obj_t *const tports[] = { objects.fluid_tport_0, objects.fluid_tport_2 };
+    lv_obj_t *sel = (ud == PENDANT_TRANSPORT_UART) ? objects.fluid_tport_0
+                                                   : objects.fluid_tport_2;
+    selector_swap(sel, tports, sizeof(tports)/sizeof(*tports));
     pendant_config_set_fluid_transport((pendant_transport_t)ud);
 }
 /* FluidConnect edit panel — fluid_edit_panel is a hidden overlay that
@@ -620,10 +637,15 @@ void action_fluid_connect(lv_event_t *e)
     /* Read the two textareas on the FluidConnect page and persist them so the
      * state machine has a host/port to dial in APP_STATE_FLUID_CONNECTING.
      * Empty host is allowed (UART transport uses no host); empty port falls
-     * back to the FluidNC default by transport (81 for WS 3.x, 23 telnet). */
+     * back to the FluidNC telnet default (23). */
+    /* Only persist a non-empty host. An empty textarea means "the user
+     * didn't type anything this time," not "erase what's saved" — writing
+     * the empty string through would silently destroy a working host on
+     * any stray tap of CONNECT. UART transport, which legitimately needs
+     * no host, never reaches this page. */
     if (objects.fluid_host_input) {
         const char *host = lv_textarea_get_text(objects.fluid_host_input);
-        if (host) pendant_config_set_fluid_host(host);
+        if (host && host[0]) pendant_config_set_fluid_host(host);
     }
     if (objects.fluid_port_input) {
         const char *port_s = lv_textarea_get_text(objects.fluid_port_input);

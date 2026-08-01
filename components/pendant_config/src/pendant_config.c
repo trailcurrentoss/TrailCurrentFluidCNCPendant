@@ -25,7 +25,7 @@ static void apply_defaults(void)
 {
     memset(&s_cfg, 0, sizeof(s_cfg));
     s_cfg.fluid_transport = PENDANT_TRANSPORT_UART;
-    s_cfg.fluid_port      = 81;                  /* FluidNC 3.x default */
+    s_cfg.fluid_port      = 23;                  /* FluidNC telnet default */
     s_cfg.units           = PENDANT_UNITS_MM;
     s_cfg.soft_limits     = true;
     s_cfg.hard_limits     = true;
@@ -66,6 +66,20 @@ esp_err_t pendant_config_init(void)
     uint16_t u16;
     if (nvs_get_u8(h,  KEY_TRANSPORT, &u8)  == ESP_OK) s_cfg.fluid_transport = (pendant_transport_t)u8;
     if (nvs_get_u16(h, KEY_PORT,      &u16) == ESP_OK) s_cfg.fluid_port      = u16;
+
+    /* WebSocket transport is retired — units that saved it before the
+     * removal are migrated to telnet. If the stored port is one of the
+     * old WS defaults (81 = FluidNC 3.x, 80 = 4.x) it only made sense for
+     * WS, so migrate it to the telnet default alongside; any other value
+     * is a deliberate user choice and is kept. */
+    if (s_cfg.fluid_transport == PENDANT_TRANSPORT_WEBSOCKET) {
+        s_cfg.fluid_transport = PENDANT_TRANSPORT_TELNET;
+        if (s_cfg.fluid_port == 80 || s_cfg.fluid_port == 81) {
+            s_cfg.fluid_port = 23;
+        }
+        ESP_LOGI(TAG, "migrated retired WebSocket transport -> telnet (port %u)",
+                 (unsigned)s_cfg.fluid_port);
+    }
     if (nvs_get_u8(h,  KEY_UNITS,     &u8)  == ESP_OK) s_cfg.units           = (pendant_units_t)u8;
     if (nvs_get_u8(h,  KEY_SOFT,      &u8)  == ESP_OK) s_cfg.soft_limits     = (bool)u8;
     if (nvs_get_u8(h,  KEY_HARD,      &u8)  == ESP_OK) s_cfg.hard_limits     = (bool)u8;
@@ -171,7 +185,7 @@ esp_err_t pendant_config_set_fluid_host(const char *host)
 
 esp_err_t pendant_config_set_fluid_port(uint16_t port)
 {
-    s_cfg.fluid_port = port ? port : 81;
+    s_cfg.fluid_port = port ? port : 23;   /* FluidNC telnet default */
     nvs_handle_t h;
     esp_err_t err = nvs_open(NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;

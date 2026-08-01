@@ -80,6 +80,13 @@ void app_state_refresh_connection_display(void);
  * user taps the refresh button. Safe from any task. */
 void app_state_refresh_files_display(void);
 
+/* Switch the Files page into "fetching" mode — files_count flips to
+ * "Loading…" and existing rows hide so the user doesn't think an
+ * outdated list is current. The next refresh_files_display call
+ * (triggered when the dispatcher's files-seq advances) overwrites with
+ * the real count and rows. Safe from any task. */
+void app_state_files_show_loading(void);
+
 /* Push the vars.c "pre-connect" defaults into every UI-bound widget so
  * the screen lights up showing OFFLINE / 0.000 / (no job loaded) / etc.
  * instead of the demo text baked into the .eez-project. Call once after

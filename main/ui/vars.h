@@ -63,7 +63,10 @@ enum FlowGlobalVariables {
     FLOW_GLOBAL_VARIABLE_SCREEN_BRIGHTNESS = 43,
     FLOW_GLOBAL_VARIABLE_SCREEN_TIMEOUT_VALUE = 44,
     FLOW_GLOBAL_VARIABLE_DEFAULT_JOG_FEED = 45,
-    FLOW_GLOBAL_VARIABLE_SELECTED_THEME = 46
+    FLOW_GLOBAL_VARIABLE_SELECTED_THEME = 46,
+    FLOW_GLOBAL_VARIABLE_BATTERY_PCT = 47,
+    FLOW_GLOBAL_VARIABLE_BATTERY_CHARGING = 48,
+    FLOW_GLOBAL_VARIABLE_BATTERY_VISIBLE = 49
 };
 
 // Native global variables
@@ -162,6 +165,12 @@ extern int32_t get_var_default_jog_feed();
 extern void set_var_default_jog_feed(int32_t value);
 extern int32_t get_var_selected_theme();
 extern void set_var_selected_theme(int32_t value);
+extern int32_t get_var_battery_pct();
+extern void set_var_battery_pct(int32_t value);
+extern bool get_var_battery_charging();
+extern void set_var_battery_charging(bool value);
+extern bool get_var_battery_visible();
+extern void set_var_battery_visible(bool value);
 
 
 #ifdef __cplusplus

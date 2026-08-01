@@ -59,6 +59,34 @@ static const char *TAG = "fluidnc";
  * about three poll periods past the stall. */
 #define RX_STALE_THRESHOLD_MS  10000
 
+/* Homing is the one operation that legitimately goes silent for longer than
+ * the threshold above, and tearing down the link mid-home is actively
+ * harmful: the controller is too busy to accept the reconnect, so the
+ * socket attempt comes back "Connection reset by peer" and the pendant
+ * sits offline for ~10 s right when the user is watching it home.
+ *
+ * Measured on the bench 2026-08-01:
+ *   I (223802) fluidnc: MSG: Homed:X
+ *   W (236084) fluidnc: RX stale for 10034 ms — forcing transport reconnect
+ *   E (243041) esp-tls: delayed connect error: Connection reset by peer
+ *   I (248114) fluidnc_ws: connected          <- ~10 s offline, for nothing
+ *
+ * A full multi-axis home at slow seek rates easily exceeds 10 s of quiet,
+ * so use a much longer ceiling while a home is in flight. It still catches
+ * a genuinely dead controller, just not on the timescale of one axis. */
+#define RX_STALE_THRESHOLD_HOMING_MS 60000
+
+/* Same reasoning, shorter horizon, for sustained jogging: the controller is
+ * busy parsing a $J= stream and its '?' replies queue behind them. Long
+ * enough to ride out a heavy jog burst, short enough to still notice a link
+ * that actually died mid-jog. */
+#define RX_STALE_THRESHOLD_JOGGING_MS 25000
+
+/* How long after issuing $H we keep treating silence as "probably homing"
+ * even if we never saw a status report land in the HOMING state — the
+ * controller can go quiet before it ever reports the new state. */
+#define HOMING_GRACE_MS        120000
+
 /* --- State ---------------------------------------------------------------- */
 
 static fluidnc_status_t      s_status;
@@ -73,6 +101,37 @@ static volatile bool         s_link_open    = false;
  * task to detect half-broken links (TCP open, controller silent) and
  * trigger an explicit reconnect. */
 static volatile int64_t      s_last_rx_us   = 0;
+
+/* Timestamp of the last $H we sent, or 0 when no home is believed to be in
+ * flight. Cleared as soon as the controller reports a settled state, so the
+ * relaxed staleness ceiling applies only for the duration of the home. */
+static volatile int64_t      s_home_cmd_us  = 0;
+
+/* Jog emission inhibit. While esp_timer_get_time() is before this stamp,
+ * fluidnc_jog / fluidnc_jog_axes silently swallow requests. Two users:
+ *
+ * 1. E-STOP / job stop: 0x18 goes out instantly, but the thumbstick task
+ *    doesn't learn the state changed until the next status report — bench
+ *    log showed a $J= emitted 20 ms AFTER the E-STOP byte (rejected with
+ *    error:8 only because the controller was mid-reset; after a reset
+ *    clears, a stale jog could EXECUTE). The inhibit closes that window.
+ *
+ * 2. Jog-safe line commands (below): FluidNC rejects ALL regular g-code
+ *    with error:9 while in JOG state, so M05 etc. must flush the jog and
+ *    keep the thumbstick quiet long enough for the command to be accepted.
+ */
+static volatile int64_t      s_jog_inhibit_until_us = 0;
+
+static void jog_inhibit_ms(int ms)
+{
+    int64_t until = esp_timer_get_time() + (int64_t)ms * 1000;
+    if (until > s_jog_inhibit_until_us) s_jog_inhibit_until_us = until;
+}
+
+static bool jog_inhibited(void)
+{
+    return esp_timer_get_time() < s_jog_inhibit_until_us;
+}
 
 static TaskHandle_t          s_poll_task = NULL;
 static TaskHandle_t          s_rx_task   = NULL;
@@ -174,6 +233,13 @@ static void apply_status_report(const fluidnc_status_report_t *r)
     status_lock();
     s_status.state = r->state;
 
+    /* Any settled state means the home finished (or was never running), so
+     * drop back to the strict staleness ceiling. Leaving this latched would
+     * keep the pendant tolerating a genuinely dead link for a full minute. */
+    if (r->state != FLUIDNC_STATE_HOMING) {
+        s_home_cmd_us = 0;
+    }
+
     if (r->has_mpos) {
         s_status.mpos.x = r->mx; s_status.mpos.y = r->my; s_status.mpos.z = r->mz;
     }
@@ -267,6 +333,15 @@ static void handle_line(const char *line)
         int code = fluidnc_proto_get_error_code(line);
         ESP_LOGW(TAG, "error:%d", code);
         if (s_collecting_files) s_collecting_files = false;
+        /* An `error:` closes out a command just as an `ok` does — the
+         * controller will send exactly one or the other per line. Without
+         * this decrement a rejected $J= (error:15 jog-past-soft-limit,
+         * error:9 while alarmed) leaks a slot permanently, and once enough
+         * leak the thumbstick's flow-control gate blocks every subsequent
+         * jog until something calls fluidnc_jog_cancel() to reset the
+         * counter. Symptom is jogging that runs briefly, stalls, and only
+         * recovers when the stick is released. */
+        if (s_jogs_outstanding > 0) s_jogs_outstanding--;
         break;
     }
     case FLUIDNC_RX_ALARM: {
@@ -358,9 +433,37 @@ static void status_poll_task(void *arg)
              * the transport so the client's auto-reconnect re-establishes. */
             int64_t now_us  = esp_timer_get_time();
             int64_t age_ms  = (now_us - s_last_rx_us) / 1000;
-            if (s_last_rx_us > 0 && age_ms > RX_STALE_THRESHOLD_MS) {
-                ESP_LOGW(TAG, "RX stale for %lld ms — forcing transport reconnect",
-                         age_ms);
+
+            /* Homing legitimately goes quiet for far longer than the normal
+             * threshold — relax the ceiling while one is in flight, either
+             * because the controller told us it is HOMING or because we sent
+             * $H recently enough that it may not have reported in yet. */
+            status_lock();
+            bool homing_state = (s_status.state == FLUIDNC_STATE_HOMING);
+            bool jog_state    = (s_status.state == FLUIDNC_STATE_JOG);
+            status_unlock();
+            int64_t home_age_ms = s_home_cmd_us > 0
+                                ? (now_us - s_home_cmd_us) / 1000
+                                : INT64_MAX;
+            bool homing = homing_state || (home_age_ms < HOMING_GRACE_MS);
+
+            /* Sustained jogging can also starve the controller's status
+             * replies — it is parsing a stream of $J= lines and '?' waits
+             * its turn. Tearing the link down then is strictly harmful:
+             * the reconnect lands on a busy controller, gets reset, and
+             * turns a transient stall into ~10 s offline. Be patient while
+             * jog work is in flight; a genuinely dead link still trips,
+             * just later. */
+            bool jogging = jog_state || (s_jogs_outstanding > 0);
+
+            int64_t threshold_ms = homing  ? RX_STALE_THRESHOLD_HOMING_MS
+                                 : jogging ? RX_STALE_THRESHOLD_JOGGING_MS
+                                           : RX_STALE_THRESHOLD_MS;
+
+            if (s_last_rx_us > 0 && age_ms > threshold_ms) {
+                ESP_LOGW(TAG, "RX stale for %lld ms (limit %lld, homing=%d) — "
+                              "forcing transport reconnect",
+                         age_ms, threshold_ms, (int)homing);
                 s_last_rx_us = now_us;          /* prevent immediate retrigger */
                 if (s_transport) {
                     s_transport->close();
@@ -414,6 +517,15 @@ void fluidnc_dispatcher_set_link_open(bool open)
 {
     s_link_open = open;
     if (open) {
+        /* Arm the RX-staleness watchdog from the moment the link opens.
+         * Without this, a connection that opens but NEVER delivers a byte
+         * (dead telnet slot on the controller, half-open socket, wrong
+         * service answering the port) left s_last_rx_us at 0 and the
+         * watchdog never fired — the pendant sat "connected" and silent
+         * forever, TXing into a black hole. Observed on the bench: every
+         * command TX OK, zero RX for minutes, no reconnect attempt. */
+        s_last_rx_us = esp_timer_get_time();
+
         /* Probe the controller right away so the pendant has firmware info
          * before the user reaches the Pendant pages. */
         write_line("$I\n");
@@ -458,11 +570,12 @@ esp_err_t fluidnc_connect(void)
     const pendant_config_t *cfg = pendant_config_get();
 
     switch (cfg->fluid_transport) {
-    case PENDANT_TRANSPORT_WEBSOCKET: s_transport = &g_transport_ws;     break;
     case PENDANT_TRANSPORT_UART:      s_transport = &g_transport_uart;   break;
     case PENDANT_TRANSPORT_TELNET:    s_transport = &g_transport_telnet; break;
-    default:
-        return ESP_ERR_INVALID_ARG;
+    /* PENDANT_TRANSPORT_WEBSOCKET is retired (pendant_config coerces it
+     * to TELNET at load); any other stray value routes to telnet too so a
+     * corrupt NVS byte can't leave the pendant transport-less. */
+    default:                          s_transport = &g_transport_telnet; break;
     }
 
     status_lock();
@@ -497,17 +610,52 @@ const fluidnc_status_t *fluidnc_get_status(void) { return &s_status; }
 
 /* --- Realtime + line commands -------------------------------------------- */
 
+/* Make the controller able to accept a regular g-code line RIGHT NOW.
+ *
+ * FluidNC (grbl semantics) rejects every non-$J= line with error:9 while a
+ * jog is executing. Measured on the bench: seven consecutive M05 taps
+ * rejected over 6 s while the user jogged with the spindle running — the
+ * stop only landed when the stick happened to be released. So any command
+ * the user expects to act immediately must first flush the jog and hold
+ * the thumbstick off long enough to be accepted:
+ *
+ *   1. inhibit new jog emits (thumbstick task runs concurrently),
+ *   2. 0x85 to cancel queued jog motion (decelerates in tens of ms —
+ *      the lead-time budget keeps at most ~450 ms queued),
+ *   3. short settle so the controller has actually left JOG state.
+ *
+ * The jog blip is barely perceptible and the stick re-engages by itself
+ * when the inhibit lapses. No-op when not jogging. */
+static void jog_flush_for_command(void)
+{
+    if (s_status.state != FLUIDNC_STATE_JOG && s_jogs_outstanding == 0) return;
+    jog_inhibit_ms(400);
+    write_rt(0x85);
+    s_jogs_outstanding = 0;
+    vTaskDelay(pdMS_TO_TICKS(120));
+}
+
 esp_err_t fluidnc_estop(void)
 {
     /* Soft reset — same byte FluidTouch / grbl-Web use; the controller
-     * clears motion and enters Alarm state on its own. */
+     * clears motion and enters Alarm state on its own.
+     *
+     * Optimistically flip the cached state to ALARM and inhibit jog before
+     * the byte goes out: the thumbstick task otherwise keeps emitting $J=
+     * until the next status report (~250 ms) — a straggler was measured
+     * 20 ms after the E-STOP byte on the bench. Swallowing emits locally
+     * is the difference between "machine frozen the instant the user hits
+     * E-STOP" and "one more segment sneaks in". */
+    jog_inhibit_ms(600);
     status_lock();
+    s_status.state       = FLUIDNC_STATE_ALARM;
     s_status.spindle_on  = false;
     s_status.spindle_rpm = 0;
     s_status.job_running = false;
     strlcpy(s_status.alarm_text, "EMERGENCY STOP - PRESS RESET TO CLEAR",
             sizeof(s_status.alarm_text));
     status_unlock();
+    s_jogs_outstanding = 0;
     notify();
     return write_rt(0x18);
 }
@@ -536,6 +684,7 @@ esp_err_t fluidnc_hold_resume(void)
 esp_err_t fluidnc_jog(int axis, int dir, float step_mm, float feed_mm_min)
 {
     if (axis < 0 || axis > 2) return ESP_ERR_INVALID_ARG;
+    if (jog_inhibited()) return ESP_OK;
     if (s_status.state == FLUIDNC_STATE_ALARM ||
         s_status.state == FLUIDNC_STATE_HOMING) return ESP_OK;
 
@@ -559,6 +708,7 @@ esp_err_t fluidnc_jog_xy(float dx_mm, float dy_mm, float feed_mm_min)
 esp_err_t fluidnc_jog_axes(float dx_mm, float dy_mm, float dz_mm,
                            float feed_mm_min)
 {
+    if (jog_inhibited()) return ESP_OK;
     if (s_status.state == FLUIDNC_STATE_ALARM ||
         s_status.state == FLUIDNC_STATE_HOMING) return ESP_OK;
     char buf[96];
@@ -593,6 +743,7 @@ int fluidnc_jog_outstanding(void)
 
 esp_err_t fluidnc_zero_axis(int axis)
 {
+    jog_flush_for_command();   /* G10 is rejected (error:9) mid-jog */
     char buf[48];
     if (axis < 0)      snprintf(buf, sizeof(buf), "G10 L20 P0 X0 Y0 Z0\n");
     else if (axis == 0) snprintf(buf, sizeof(buf), "G10 L20 P0 X0\n");
@@ -602,7 +753,28 @@ esp_err_t fluidnc_zero_axis(int axis)
     return write_line(buf);
 }
 
-esp_err_t fluidnc_home_all(void)             { return write_line("$H\n"); }
+esp_err_t fluidnc_home_all(void)
+{
+    /* Arm the relaxed staleness ceiling before the line goes out — the
+     * controller can stop answering '?' the moment it starts seeking. */
+    s_home_cmd_us = esp_timer_get_time();
+
+    /* Optimistically flip the cached state to HOMING. FluidNC stops
+     * reporting status during the cycle, so the cache would otherwise say
+     * Idle for the whole home and the thumbstick would keep pumping $J=
+     * into a controller that can't take them — measured on the bench:
+     * jog lines still flowing 2-4 s after $H, followed by FluidNC
+     * resetting the TCP connection. The first post-home status report
+     * corrects the state either way. */
+    status_lock();
+    s_status.state = FLUIDNC_STATE_HOMING;
+    status_unlock();
+    notify();
+
+    esp_err_t err = write_line("$H\n");
+    if (err != ESP_OK) s_home_cmd_us = 0;
+    return err;
+}
 
 esp_err_t fluidnc_set_wcs(int wcs_index)
 {
@@ -653,17 +825,39 @@ esp_err_t fluidnc_adjust_override(int channel, int delta)
 
 esp_err_t fluidnc_spindle_on(int rpm)
 {
+    /* Optimistic state: reflect the command in spindle_on immediately so
+     * the UI answers the tap now instead of after the next status poll
+     * (4 Hz at best, frozen entirely during an RX stall). The periodic
+     * status reports remain authoritative and overwrite this within
+     * ~250 ms if the controller disagrees. Without this, the dashboard
+     * toggle reads a stale "off" after a stop tap and the user's second
+     * tap RESTARTS the spindle they were trying to kill. */
+    status_lock();
     if (rpm > 0) s_status.spindle_target = rpm;
+    int use_rpm = s_status.spindle_target;
+    s_status.spindle_on = true;
+    status_unlock();
+    notify();
+    jog_flush_for_command();   /* M03 is rejected (error:9) mid-jog */
     char buf[24];
     /* Use the two-digit M-code form (M03 not M3) — both are valid g-code
      * per ISO 6983, but the leading-zero form is what FluidNC's
      * documentation + web UI examples consistently use. Matching that
      * avoids any parser surprises. */
-    snprintf(buf, sizeof(buf), "M03 S%d\n", rpm > 0 ? rpm : s_status.spindle_target);
+    snprintf(buf, sizeof(buf), "M03 S%d\n", use_rpm);
     return write_line(buf);
 }
 
-esp_err_t fluidnc_spindle_off(void)            { return write_line("M05\n"); }
+esp_err_t fluidnc_spindle_off(void)
+{
+    /* Optimistic — see fluidnc_spindle_on. */
+    status_lock();
+    s_status.spindle_on = false;
+    status_unlock();
+    notify();
+    jog_flush_for_command();   /* M05 is rejected (error:9) mid-jog */
+    return write_line("M05\n");
+}
 
 esp_err_t fluidnc_spindle_target_delta(int delta_rpm)
 {
@@ -719,6 +913,10 @@ esp_err_t fluidnc_job_start(const char *file_name)
 
 esp_err_t fluidnc_job_stop(void)
 {
+    /* Same straggler window as fluidnc_estop — keep the thumbstick quiet
+     * across the reset so a stale $J= can't chase the 0x18. */
+    jog_inhibit_ms(600);
+    s_jogs_outstanding = 0;
     s_status.job_running = false;
     notify();
     /* Soft-reset stops the running program; $X clears the resulting alarm

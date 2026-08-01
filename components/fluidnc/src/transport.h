@@ -10,7 +10,7 @@
  * fluidnc_dispatcher_feed_rx() — the transport doesn't need to know about
  * line buffering or the proto parser.
  *
- * Link state changes (websocket connected / disconnected, UART driver
+ * Link state changes (telnet socket connected / disconnected, UART driver
  * reset) are reported via fluidnc_dispatcher_set_link_open(). The
  * dispatcher uses this to gate the status poller and surface OFFLINE on
  * the status pill.
@@ -45,7 +45,6 @@ typedef struct {
     bool (*is_open)(void);
 } fluid_transport_t;
 
-extern const fluid_transport_t g_transport_ws;
 extern const fluid_transport_t g_transport_uart;
 extern const fluid_transport_t g_transport_telnet;
 

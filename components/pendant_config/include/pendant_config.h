@@ -26,6 +26,10 @@ extern "C" {
 
 typedef enum {
     PENDANT_TRANSPORT_UART      = 0,
+    /* RETIRED 2026-08: WebSocket was dropped as a transport (FluidNC 4.x's
+     * WS server reset connections under load; telnet proved stable). The
+     * enum value is kept so a stored NVS byte of 1 on already-deployed
+     * units still parses — pendant_config_init() coerces it to TELNET. */
     PENDANT_TRANSPORT_WEBSOCKET = 1,
     PENDANT_TRANSPORT_TELNET    = 2,
 } pendant_transport_t;

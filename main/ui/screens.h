@@ -133,10 +133,6 @@ typedef struct _objects_t {
     lv_obj_t *fluid_tport_icon_0;
     lv_obj_t *fluid_tport_name_0;
     lv_obj_t *fluid_tport_sub_0;
-    lv_obj_t *fluid_tport_1;
-    lv_obj_t *fluid_tport_icon_1;
-    lv_obj_t *fluid_tport_name_1;
-    lv_obj_t *fluid_tport_sub_1;
     lv_obj_t *fluid_tport_2;
     lv_obj_t *fluid_tport_icon_2;
     lv_obj_t *fluid_tport_name_2;
@@ -188,6 +184,8 @@ typedef struct _objects_t {
     lv_obj_t *page_dashboard_status_bar__status_mini_y;
     lv_obj_t *page_dashboard_status_bar__status_axis_z_letter;
     lv_obj_t *page_dashboard_status_bar__status_mini_z;
+    lv_obj_t *page_dashboard_status_bar__status_battery_icon;
+    lv_obj_t *page_dashboard_status_bar__status_battery_label;
     lv_obj_t *page_dashboard_body;
     lv_obj_t *dash_dro_card;
     lv_obj_t *dash_dro_caption;
@@ -306,6 +304,8 @@ typedef struct _objects_t {
     lv_obj_t *page_jog_status_bar__status_mini_y;
     lv_obj_t *page_jog_status_bar__status_axis_z_letter;
     lv_obj_t *page_jog_status_bar__status_mini_z;
+    lv_obj_t *page_jog_status_bar__status_battery_icon;
+    lv_obj_t *page_jog_status_bar__status_battery_label;
     lv_obj_t *page_jog_body;
     lv_obj_t *jog_dro_card;
     lv_obj_t *jog_dro_work_lbl;
@@ -438,6 +438,8 @@ typedef struct _objects_t {
     lv_obj_t *page_run_status_bar__status_mini_y;
     lv_obj_t *page_run_status_bar__status_axis_z_letter;
     lv_obj_t *page_run_status_bar__status_mini_z;
+    lv_obj_t *page_run_status_bar__status_battery_icon;
+    lv_obj_t *page_run_status_bar__status_battery_label;
     lv_obj_t *page_run_body;
     lv_obj_t *run_hdr_card;
     lv_obj_t *run_hdr_caption;
@@ -578,6 +580,8 @@ typedef struct _objects_t {
     lv_obj_t *page_files_status_bar__status_mini_y;
     lv_obj_t *page_files_status_bar__status_axis_z_letter;
     lv_obj_t *page_files_status_bar__status_mini_z;
+    lv_obj_t *page_files_status_bar__status_battery_icon;
+    lv_obj_t *page_files_status_bar__status_battery_label;
     lv_obj_t *page_files_body;
     lv_obj_t *files_list_card;
     lv_obj_t *files_caption;
@@ -599,6 +603,9 @@ typedef struct _objects_t {
     lv_obj_t *files_stg_lbl;
     lv_obj_t *files_stg_val;
     lv_obj_t *files_stg_bar;
+    lv_obj_t *files_btn_refresh;
+    lv_obj_t *files_btn_refresh_icon;
+    lv_obj_t *files_btn_refresh_lbl;
     lv_obj_t *page_files_dock;
     lv_obj_t *page_files_dock__bottom_dock_root;
     lv_obj_t *page_files_dock__dock_btn_dash;
@@ -653,6 +660,8 @@ typedef struct _objects_t {
     lv_obj_t *page_spindle_status_bar__status_mini_y;
     lv_obj_t *page_spindle_status_bar__status_axis_z_letter;
     lv_obj_t *page_spindle_status_bar__status_mini_z;
+    lv_obj_t *page_spindle_status_bar__status_battery_icon;
+    lv_obj_t *page_spindle_status_bar__status_battery_label;
     lv_obj_t *page_spindle_body;
     lv_obj_t *spin_left_card;
     lv_obj_t *spin_caption;
@@ -738,6 +747,8 @@ typedef struct _objects_t {
     lv_obj_t *page_probe_status_bar__status_mini_y;
     lv_obj_t *page_probe_status_bar__status_axis_z_letter;
     lv_obj_t *page_probe_status_bar__status_mini_z;
+    lv_obj_t *page_probe_status_bar__status_battery_icon;
+    lv_obj_t *page_probe_status_bar__status_battery_label;
     lv_obj_t *page_probe_body;
     lv_obj_t *probe_left;
     lv_obj_t *probe_cyc_caption;
@@ -839,6 +850,8 @@ typedef struct _objects_t {
     lv_obj_t *page_macros_status_bar__status_mini_y;
     lv_obj_t *page_macros_status_bar__status_axis_z_letter;
     lv_obj_t *page_macros_status_bar__status_mini_z;
+    lv_obj_t *page_macros_status_bar__status_battery_icon;
+    lv_obj_t *page_macros_status_bar__status_battery_label;
     lv_obj_t *page_macros_body;
     lv_obj_t *macros_0;
     lv_obj_t *macros_icon_0;
@@ -926,6 +939,8 @@ typedef struct _objects_t {
     lv_obj_t *page_settings_status_bar__status_mini_y;
     lv_obj_t *page_settings_status_bar__status_axis_z_letter;
     lv_obj_t *page_settings_status_bar__status_mini_z;
+    lv_obj_t *page_settings_status_bar__status_battery_icon;
+    lv_obj_t *page_settings_status_bar__status_battery_label;
     lv_obj_t *page_settings_body;
     lv_obj_t *settings_nav;
     lv_obj_t *settings_nav_machine;

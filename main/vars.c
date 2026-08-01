@@ -77,6 +77,10 @@ static struct {
     int32_t  screen_timeout_value;
     int32_t  default_jog_feed;
     int32_t  selected_theme;
+
+    int32_t  battery_pct;
+    bool     battery_charging;
+    bool     battery_visible;
 } s_v = {
     /* Defaults are "pre-connect" values — they're what the UI shows before
      * any FluidNC status report has arrived. Anything that's normally
@@ -121,6 +125,12 @@ static struct {
     .screen_timeout_value  = 5,
     .default_jog_feed      = 1200,
     .selected_theme        = 1,     /* 0 = Light (Default), 1 = Dark */
+
+    /* Battery gauge starts hidden — the first battery_monitor sample fires
+     * ~1 s after boot and unhides it if a battery voltage is detected. */
+    .battery_pct           = 0,
+    .battery_charging      = false,
+    .battery_visible       = false,
 };
 
 /* Macro generator for the four common variable kinds EEZ Studio emits.
@@ -193,8 +203,9 @@ VAR_INT   (fluid_transport_index, fluid_transport_index)
 #define STATUSBAR_FANOUT_TEXT(suffix, text)                                       \
     do {                                                                          \
         lv_obj_t *const _arr[] = STATUS_BAR_FIELD(suffix);                        \
+        const char *_txt = (text);                                                \
         for (size_t _i = 0; _i < sizeof(_arr)/sizeof(*_arr); _i++) {              \
-            if (_arr[_i]) lv_label_set_text(_arr[_i], (text) ? (text) : "");      \
+            if (_arr[_i]) lv_label_set_text(_arr[_i], _txt ? _txt : "");          \
         }                                                                         \
     } while (0)
 
@@ -701,6 +712,106 @@ void    set_var_selected_theme(int32_t v)
         if (v == 1) lv_obj_add_state(objects.settings_theme_dark,    LV_STATE_CHECKED);
         else        lv_obj_clear_state(objects.settings_theme_dark,  LV_STATE_CHECKED);
     }
+    bsp_display_unlock();
+}
+
+/* --- Battery gauge ------------------------------------------------------ *
+ * Three vars drive the status-bar battery indicator:
+ *   battery_pct       — 0..100, the numeric label ("85%")
+ *   battery_charging  — swaps the icon glyph (bolt when charging,
+ *                       battery-fill level otherwise)
+ *   battery_visible   — hides the whole indicator if no battery is
+ *                       present (V_bat below the visible threshold)
+ *
+ * Font Awesome glyphs used, all in the fa_22 subset:
+ *   0xF0E7  bolt          (charging)
+ *   0xF244  battery-empty       (  0–19 %)
+ *   0xF243  battery-quarter     ( 20–39 %)
+ *   0xF242  battery-half        ( 40–59 %)
+ *   0xF241  battery-three-qtrs  ( 60–79 %)
+ *   0xF240  battery-full        ( 80–100 %)
+ * The percent label uses mono_13 and colors track pct via LV_STATE_* on the
+ * icon — DEFAULT / FOCUSED (low) / DISABLED (critical) — leaving the exact
+ * palette to the EEZ Studio style definitions. */
+
+static const char *battery_glyph_for(int pct, bool charging)
+{
+    if (charging)    return "\xEF\x83\xA7";   /* U+F0E7 bolt */
+    if (pct >= 80)   return "\xEF\x89\x80";   /* U+F240 battery-full */
+    if (pct >= 60)   return "\xEF\x89\x81";   /* U+F241 battery-three-quarters */
+    if (pct >= 40)   return "\xEF\x89\x82";   /* U+F242 battery-half */
+    if (pct >= 20)   return "\xEF\x89\x83";   /* U+F243 battery-quarter */
+    return             "\xEF\x89\x84";        /* U+F244 battery-empty */
+}
+
+static void battery_paint_locked(void)
+{
+    /* Icon glyph swap + LV_STATE_* on the icon so the style palette can
+     * color-code it (critical/low/normal). */
+    const char *glyph = battery_glyph_for(s_v.battery_pct, s_v.battery_charging);
+    lv_obj_t *const icons[] = STATUS_BAR_FIELD(status_battery_icon);
+    for (size_t i = 0; i < sizeof(icons)/sizeof(*icons); i++) {
+        if (!icons[i]) continue;
+        lv_label_set_text(icons[i], glyph);
+
+        /* Style hooks:
+         *   CHECKED  = charging (green/accent)
+         *   DISABLED = critical (<= 10 %)
+         *   FOCUSED  = low      (<= 25 %)
+         *   DEFAULT  = normal
+         * Styles live in the .eez-project; this just sets the state bits. */
+        const lv_state_t mask = LV_STATE_CHECKED | LV_STATE_FOCUSED | LV_STATE_DISABLED;
+        lv_obj_clear_state(icons[i], mask);
+        if (s_v.battery_charging)     lv_obj_add_state(icons[i], LV_STATE_CHECKED);
+        else if (s_v.battery_pct <= 10) lv_obj_add_state(icons[i], LV_STATE_DISABLED);
+        else if (s_v.battery_pct <= 25) lv_obj_add_state(icons[i], LV_STATE_FOCUSED);
+    }
+
+    /* Percent text, e.g. "85%". */
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", (int)s_v.battery_pct);
+    STATUSBAR_FANOUT_TEXT(status_battery_label, buf);
+
+    /* Show/hide the whole pair based on battery_visible. */
+    lv_obj_t *const labels[] = STATUS_BAR_FIELD(status_battery_label);
+    for (size_t i = 0; i < sizeof(icons)/sizeof(*icons); i++) {
+        if (icons[i]) {
+            if (s_v.battery_visible) lv_obj_clear_flag(icons[i], LV_OBJ_FLAG_HIDDEN);
+            else                     lv_obj_add_flag(icons[i], LV_OBJ_FLAG_HIDDEN);
+        }
+        if (labels[i]) {
+            if (s_v.battery_visible) lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+            else                     lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
+int32_t get_var_battery_pct(void) { return s_v.battery_pct; }
+void    set_var_battery_pct(int32_t v)
+{
+    if (v < 0)   v = 0;
+    if (v > 100) v = 100;
+    bsp_display_lock(0);
+    s_v.battery_pct = v;
+    battery_paint_locked();
+    bsp_display_unlock();
+}
+
+bool get_var_battery_charging(void) { return s_v.battery_charging; }
+void set_var_battery_charging(bool v)
+{
+    bsp_display_lock(0);
+    s_v.battery_charging = v;
+    battery_paint_locked();
+    bsp_display_unlock();
+}
+
+bool get_var_battery_visible(void) { return s_v.battery_visible; }
+void set_var_battery_visible(bool v)
+{
+    bsp_display_lock(0);
+    s_v.battery_visible = v;
+    battery_paint_locked();
     bsp_display_unlock();
 }
 

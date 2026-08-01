@@ -6,7 +6,6 @@ idf_component_register(
         "src/fluidnc.c"
         "src/fluidnc_mock.c"
         "src/proto.c"
-        "src/transport_ws.c"
         "src/transport_uart.c"
         "src/transport_telnet.c"
     INCLUDE_DIRS "include"
@@ -16,5 +15,4 @@ idf_component_register(
         freertos
         esp_event
         esp_driver_uart
-        espressif__esp_websocket_client
 )

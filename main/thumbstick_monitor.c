@@ -36,8 +36,32 @@ static const char *TAG = "thumbstick";
  * Deadzone is generous because each stick rests around 1730–1760 raw on
  * either axis and we want zero motion when the user lets go.
  */
-#define SAMPLE_PERIOD_MS    100
+/* Sampling at 25 Hz (was 10 Hz). The emit rate is governed by the intent
+ * gate below, not by this, so a faster sampler costs almost nothing on the
+ * wire — but it gives the smoothing filter enough resolution to track a
+ * hand sweep as a continuous ramp instead of ten discrete steps a second. */
+#define SAMPLE_PERIOD_MS    40
 #define DEADZONE_FRAC       0.12f
+
+/* Input smoothing — exponential moving average on the raw deflections.
+ *
+ * The pots are noisy at the ±3-count level and the sampler quantizes, so
+ * the commanded vector used to jitter by a degree or two of heading and a
+ * few percent of magnitude between ticks. Every such wobble that clears
+ * the intent gate becomes a fresh $J= at a slightly different angle, and
+ * FluidNC's planner decelerates through each junction — which is what the
+ * "notchy" feel actually is.
+ *
+ * At 25 Hz, alpha 0.35 gives a ~90 ms time constant: fast enough that the
+ * stick still feels directly connected, slow enough that pot noise never
+ * reaches the planner.
+ *
+ * SAFETY: the filter is bypassed on release. When the RAW deflection falls
+ * inside the deadzone the filter state is zeroed immediately rather than
+ * being allowed to decay, so letting go of the stick stops the machine now
+ * and not ~200 ms later. Smoothing belongs on the way up, never on the way
+ * to a stop. */
+#define SMOOTH_ALPHA        0.35f
 #define MAX_FEED_XY_CEILING 1500.0f /* mm/min — slider clamp for X/Y */
 #define MAX_FEED_Z_CEILING   750.0f /* mm/min — half of XY ceiling */
 #define CALIBRATION_SAMPLES 24      /* averaged at startup */
@@ -65,8 +89,70 @@ static const char *TAG = "thumbstick";
  *   INTENT_MAG_REL       — relative magnitude change that triggers a
  *                          resend (12 % = noticeable speed change).
  */
-#define JOG_SEGMENT_MS      150
-#define INTENT_REFRESH_MS   100
+/* CRITICAL INVARIANT: JOG_SEGMENT_MS must be comfortably LARGER than the
+ * interval at which we actually emit, or the planner drains between
+ * segments and the machine physically stops for the difference.
+ *
+ * This was violated and produced a "notchy" feel. Measured on the wire at
+ * the old settings (segment 150, refresh 100, sampler 100):
+ *
+ *   I (131683) $J=G91 G21 X1.4424 F577.0
+ *   I (131884) $J=G91 G21 X1.4444 F577.8   <- 201 ms later
+ *   I (132187) $J=G91 G21 X1.4444 F577.8   <- 303 ms
+ *
+ * 150 ms of motion queued every ~200 ms: dead for a quarter of the time,
+ * at ~5 Hz. The emit interval was 200 ms rather than the intended 100
+ * because the refresh test is `age_ms > INTENT_REFRESH_MS` sampled every
+ * SAMPLE_PERIOD_MS — at 100/100 the tick where age == 100 fails the
+ * strict compare, so it slipped to the following tick every time.
+ *
+ * Overlap costs queue depth (and therefore stick-to-motion lag), which is
+ * what MAX_OUTSTANDING_JOGS bounds. Raising the segment without lowering
+ * that cap trades notchiness for lag.
+ *
+ * SECOND CONSTRAINT: the emit RATE must stay low enough that FluidNC's
+ * main loop still services '?' between jog parses. Overlap alone is not
+ * enough — a first pass at this used a 200 ms segment every ~123 ms, which
+ * held the planner full but pushed ~9-11 Hz of $J= and starved the status
+ * replies outright. Measured during a sustained jog:
+ *
+ *   I (98101) $J=...   I (98184) $J=...   I (98275) $J=...   (83-91 ms apart)
+ *   W (115265) fluidnc: RX stale for 10137 ms — forcing transport reconnect
+ *
+ * THIRD CONSTRAINT (the one that actually closes the loop): FluidNC acks a
+ * $J= when it is ACCEPTED into the planner, not when it is executed. So an
+ * unacked-count gate does nothing while the planner has room — acks return
+ * instantly and any duty ratio above 1.0 silently accumulates backlog until
+ * the planner's ~16 blocks are full, i.e. seconds of queued motion. At that
+ * point (a) every intent change lags by the backlog, (b) any queued g-code
+ * like M05 waits behind it, and (c) FluidNC's main loop blocks waiting for
+ * planner space with WS input backed up — which is precisely when its
+ * status replies starve and the RX watchdog used to fire.
+ *
+ * So the emit pacing is a LEAD-TIME BUDGET, not a duty guess: we track how
+ * far into the future our queued segments extend (s_queued_until_us) and
+ * top up only when that lead falls to JOG_TARGET_LEAD_MS. Each emit adds
+ * exactly JOG_SEGMENT_MS of motion, so the steady-state emit interval
+ * equals the segment length (duty 1.0 by construction), the lead cushion
+ * rides between TARGET and TARGET+SEGMENT (~150-450 ms), the planner never
+ * fills, and acks stay instant. The cushion absorbs WiFi/WS jitter up to
+ * TARGET ms without a gap; release and reversal still flush it with 0x85,
+ * so worst-case stick-to-stop stays instant.
+ *
+ * INTENT_REFRESH_MS must stay below JOG_SEGMENT_MS so the refresh trigger
+ * is always due by the time the lead budget opens. */
+#define JOG_SEGMENT_MS      300
+#define JOG_TARGET_LEAD_MS  150
+#define INTENT_REFRESH_MS   200
+
+/* Failsafe for a jammed flow-control gate. If acks stop arriving (RX stall,
+ * dropped frames) the outstanding counter pins at its cap and the gate
+ * would block every emit until the user releases the stick — measured as a
+ * 4.4 s dead stick on the bench. If the gate has been continuously closed
+ * this long while the user is actively deflecting, assume the acks are
+ * lost: fire 0x85 (resets the counter and flushes whatever the controller
+ * still has) and start fresh. */
+#define GATE_STUCK_MS       1500
 #define INTENT_DIR_DEG      15.0f
 #define INTENT_MAG_REL      0.12f
 /* Reversal threshold — dot product of old vs new direction vectors. < 0
@@ -78,15 +164,49 @@ static const char *TAG = "thumbstick";
 /* Max queued $J= we let pile up at the controller. FluidNC's planner is
  * 16 deep; staying well under that leaves headroom for the periodic `?`
  * to slip in and keeps the WS RX from backing up. */
-#define MAX_OUTSTANDING_JOGS 4
+/* Dead-link backstop ONLY — this does NOT pace the jog stream. Pacing and
+ * planner-depth bounding are done entirely by the lead-time budget above,
+ * which limits queued motion by TIME and cannot overfill the planner no
+ * matter what the acks do.
+ *
+ * Why this must be loose: FluidNC's `ok` replies are tiny writes and
+ * arrive BATCHED on some transports (telnet + Nagle's algorithm clumps
+ * them behind the next status report). A tight cap here (2) turned that
+ * batching into a burst-stall cycle — measured on the bench as 2-3
+ * segments at normal cadence, then a 1.0-1.6 s dead gap while the gate
+ * waited for clumped acks (or the GATE_STUCK failsafe fired and cancelled
+ * live motion). 41 % of emit intervals were stalls; the same firmware
+ * over WS showed 4 %.
+ *
+ * At the ~3.3 Hz emit rate, 6 unacked sends = ~1.8 s of total ack silence
+ * before the gate closes at all — far beyond any batching, still prompt
+ * enough that a genuinely dead link is caught (and then unjammed by the
+ * GATE_STUCK failsafe + RX-stale watchdog). */
+#define MAX_OUTSTANDING_JOGS 6
+/* Cross-axis-snap threshold. If an axis's |velocity| is less than this
+ * fraction of the dominant axis, zero it. This eliminates tiny noise
+ * components on the "other" pot when the user means pure-axis motion —
+ * without this, consecutive $J= segments differ by ~1° in heading and
+ * FluidNC's planner inserts a small decel/accel at every junction,
+ * which feels jerky on the axis the user thinks they're moving cleanly.
+ * 0.10 (10 %) leaves diagonal motion alone (cos 6° = 0.99 — any honest
+ * push past 6° off-axis stays a true diagonal) while snapping the
+ * pot-noise pollution. */
+#define AXIS_SNAP_FRAC      0.10f
 
 /* Grace period before firing 0x85 jog-cancel after the stick falls into
  * the deadzone. Without this, a fast direction change (X+ → through center
  * → X-) causes a stutter because we cancel + re-engage on the single tick
  * the stick is centered. 200 ms of slack is short enough that a real
  * release still feels instant, and long enough to absorb a directional
- * swing across the rest position. */
-#define CANCEL_GRACE_TICKS  2
+ * swing across the rest position.
+ *
+ * Expressed in ticks, so it MUST be rescaled whenever SAMPLE_PERIOD_MS
+ * changes. At the 40 ms sampler, 5 ticks preserves the intended ~200 ms.
+ * (It was 2 ticks at the old 100 ms sampler; leaving it at 2 would have
+ * silently shortened the grace to 80 ms and reintroduced the stutter on
+ * fast reversals through center.) */
+#define CANCEL_GRACE_TICKS  5
 
 /* Wiring (change here only).
  *
@@ -98,14 +218,20 @@ static const char *TAG = "thumbstick";
  *     VRY1 → GPIO50  (ADC2_CH1)
  *     SW1  → GPIO2   (digital, pull-up)
  *
- *   Stick 2 (Z jog on Y axis; X reserved for a future function):
- *     VRX2 → GPIO51  (ADC2_CH2 — read but not used yet)
- *     VRY2 → GPIO52  (ADC2_CH3 → Z+/Z-)
+ *   Stick 2 (Z jog; the other axis reserved for a future function):
+ *     VRX2 → GPIO51  (ADC2_CH2)
+ *     VRY2 → GPIO52  (ADC2_CH3)
  *     SW2  → GPIO3   (digital, pull-up)
  *
  * Why GPIO51 for SW1 was wrong: GPIO51 is an ADC pin. A button doesn't
  * need analog, but a second stick does — so SW1 moved to GPIO2 to free
- * GPIO51 for VRX2. */
+ * GPIO51 for VRX2.
+ *
+ * BOTH sticks are rotated 90° in the enclosure, so each module's VRX pot
+ * now runs along the pendant's Y direction and VRY along X. The swap is
+ * applied once, here at init: s_x* is fed from the module's VRY rail and
+ * s_y* from VRX. Everything downstream (calibration, deflection, logs)
+ * then speaks in pendant axes, not module axes. */
 #define PIN_VRX1 GPIO_NUM_49
 #define PIN_VRY1 GPIO_NUM_50
 #define PIN_SW1  GPIO_NUM_2
@@ -122,6 +248,32 @@ static int   s_idle_ticks = 0;           /* consecutive ticks below deadzone */
  * queued at the controller. Zero magnitude = nothing in flight. */
 static float    s_emit_vx = 0, s_emit_vy = 0, s_emit_vz = 0;
 static int64_t  s_emit_us = 0;
+/* End of the motion we've queued at the controller, in esp_timer time.
+ * The lead-time budget: emits are allowed only while
+ * (s_queued_until_us - now) <= JOG_TARGET_LEAD_MS. */
+static int64_t  s_queued_until_us = 0;
+/* First tick at which the outstanding-jogs gate blocked an emit while the
+ * user was deflecting; 0 = not currently blocked. Drives GATE_STUCK_MS. */
+static int64_t  s_gate_blocked_us = 0;
+/* Smoothed deflections — see SMOOTH_ALPHA. */
+static float    s_f_dx1 = 0, s_f_dy1 = 0, s_f_dy2 = 0;
+
+/* One EMA step. `raw` is the unfiltered deflection in [-1, +1].
+ *
+ * Below the deadzone the filter is FORCED to zero instead of being allowed
+ * to decay toward it. Decaying would keep the machine creeping for a few
+ * hundred ms after the user lets go of the stick, which on a CNC pendant
+ * is a safety problem, not just a feel problem. Smoothing is applied to
+ * motion, never to stopping. */
+static float smooth_step(float *state, float raw)
+{
+    if (fabsf(raw) < DEADZONE_FRAC) {
+        *state = 0.0f;
+    } else {
+        *state += SMOOTH_ALPHA * (raw - *state);
+    }
+    return *state;
+}
 
 /* The ESP-IDF oneshot driver allows ONE handle per ADC unit. Two channels on
  * the same unit (e.g. VRX=GPIO49 / VRY=GPIO50 both on ADC2) must share that
@@ -308,6 +460,11 @@ static void clear_emit_state(void)
 {
     s_emit_vx = s_emit_vy = s_emit_vz = 0.0f;
     s_emit_us = 0;
+    s_queued_until_us = 0;
+    s_gate_blocked_us = 0;
+    /* Drop the smoothing history too. Stale filter state would otherwise
+     * survive an alarm/hold and lurch the machine when jogging re-enables. */
+    s_f_dx1 = s_f_dy1 = s_f_dy2 = 0.0f;
 }
 
 static void jog_tick(int x1, int y1, int x2, int y2)
@@ -324,9 +481,10 @@ static void jog_tick(int x1, int y1, int x2, int y2)
         return;
     }
 
-    /* Stick 1 (X+Y plane). */
-    float dx1 = deflection(x1, s_center_x1);
-    float dy1 = deflection(y1, s_center_y1);
+    /* Stick 1 (X+Y plane). Smoothed so pot noise never reaches the planner
+     * as a heading wobble. */
+    float dx1 = smooth_step(&s_f_dx1, deflection(x1, s_center_x1));
+    float dy1 = smooth_step(&s_f_dy1, deflection(y1, s_center_y1));
     float mag1 = sqrtf(dx1 * dx1 + dy1 * dy1);
     float t1   = curved_throttle(mag1);
     float vx = 0.0f, vy = 0.0f;
@@ -336,14 +494,31 @@ static void jog_tick(int x1, int y1, int x2, int y2)
         vy = (dy1 / mag1) * feed1;
     }
 
-    /* Stick 2: Y axis only → Z jog. (VRX2 read but ignored for now.) */
-    float dy2 = deflection(y2, s_center_y2);
+    /* Stick 2: pendant-Y axis only → Z jog. After the 90° mount swap that
+     * is the module's VRX2 rail; the module's VRY2 (pendant X) is read but
+     * ignored for now. */
+    float dy2 = smooth_step(&s_f_dy2, deflection(y2, s_center_y2));
     float mag2 = fabsf(dy2);
     float t2   = curved_throttle(mag2);
     float vz = 0.0f;
     if (t2 > 0.0f) {
         float feed2 = t2 * max_feed_z();
         vz = (dy2 >= 0.0f ? 1.0f : -1.0f) * feed2;
+    }
+
+    /* Cross-axis snap: when one axis clearly dominates, zero the smaller
+     * ones so successive $J= segments are perfectly collinear and the
+     * planner runs them as one straight line. Threshold is fraction of
+     * the dominant axis; see AXIS_SNAP_FRAC definition. */
+    {
+        float ax = fabsf(vx), ay = fabsf(vy), az = fabsf(vz);
+        float dom = fmaxf(fmaxf(ax, ay), az);
+        if (dom > 0.0f) {
+            float thresh = dom * AXIS_SNAP_FRAC;
+            if (ax < thresh) vx = 0.0f;
+            if (ay < thresh) vy = 0.0f;
+            if (az < thresh) vz = 0.0f;
+        }
     }
 
     bool any_motion = (vx != 0.0f) || (vy != 0.0f) || (vz != 0.0f);
@@ -366,12 +541,30 @@ static void jog_tick(int x1, int y1, int x2, int y2)
      * check below to keep FluidNC's main loop free to handle `?` polls. */
     if (!intent_changed(vx, vy, vz)) return;
 
-    /* Flow control — if the controller still has a full planner of $J=
-     * segments waiting, holding off lets it drain. Without this the WS
-     * RX side back-pressures and the dispatcher's `?` polls get queued
-     * behind un-acked $J= replies, which is what made the dashboard
-     * coordinates freeze during jog earlier. */
-    if (fluidnc_jog_outstanding() >= MAX_OUTSTANDING_JOGS) return;
+    int64_t now_us = esp_timer_get_time();
+
+    /* Lead-time budget — the primary pacing mechanism (see the constant
+     * block). Only top up when the queued motion has burned down to the
+     * target cushion. This is what keeps FluidNC's planner shallow and its
+     * main loop responsive regardless of ack timing. */
+    if (s_queued_until_us < now_us) s_queued_until_us = now_us;
+    if ((s_queued_until_us - now_us) / 1000 > JOG_TARGET_LEAD_MS) return;
+
+    /* Flow control backstop — unacked lines at the transport level. With
+     * the lead budget above this rarely engages; it exists for the case
+     * where acks stop coming back entirely. */
+    if (fluidnc_jog_outstanding() >= MAX_OUTSTANDING_JOGS) {
+        if (s_gate_blocked_us == 0) {
+            s_gate_blocked_us = now_us;
+        } else if ((now_us - s_gate_blocked_us) / 1000 > GATE_STUCK_MS) {
+            /* Acks lost (RX stall). Flush and resync rather than leaving
+             * the stick dead until the user lets go. */
+            fluidnc_jog_cancel();
+            clear_emit_state();
+        }
+        return;
+    }
+    s_gate_blocked_us = 0;
 
     /* Direction reversal — when the user flips the stick more than 90°,
      * any old segments still queued would have to fully execute before
@@ -389,6 +582,8 @@ static void jog_tick(int x1, int y1, int x2, int y2)
                     / (old_mag * new_mag_check);
         if (dot < REVERSAL_COS_THRESH) {
             fluidnc_jog_cancel();
+            /* Queue flushed — the lead budget restarts from now. */
+            s_queued_until_us = now_us;
         }
     }
 
@@ -401,10 +596,11 @@ static void jog_tick(int x1, int y1, int x2, int y2)
     float step_z = vz * dt_min;
 
     fluidnc_jog_axes(step_x, step_y, step_z, vec_feed);
+    s_queued_until_us += (int64_t)JOG_SEGMENT_MS * 1000;
     s_emit_vx = vx;
     s_emit_vy = vy;
     s_emit_vz = vz;
-    s_emit_us = esp_timer_get_time();
+    s_emit_us = now_us;
     s_jog_active = true;
 }
 
@@ -444,10 +640,12 @@ void thumbstick_monitor_start(void)
              (int)PIN_VRX1, (int)PIN_VRY1, (int)PIN_SW1,
              (int)PIN_VRX2, (int)PIN_VRY2, (int)PIN_SW2);
 
-    try_init_adc(PIN_VRX1, &s_x1);
-    try_init_adc(PIN_VRY1, &s_y1);
-    try_init_adc(PIN_VRX2, &s_x2);
-    try_init_adc(PIN_VRY2, &s_y2);
+    /* 90° mount rotation: the module's VRY rail is the pendant's X and
+     * vice versa, on both sticks. See the wiring comment above. */
+    try_init_adc(PIN_VRY1, &s_x1);
+    try_init_adc(PIN_VRX1, &s_y1);
+    try_init_adc(PIN_VRY2, &s_x2);
+    try_init_adc(PIN_VRX2, &s_y2);
 
     /* SW gets a pull-up (active-low). Analog rails get no pull — the stick's
      * 10 kΩ divider already drives them, and the internal ~45 kΩ pull would

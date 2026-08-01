@@ -73,6 +73,46 @@ CONFIG_ESP_HOSTED_P4_DEV_BOARD_NONE=y
 CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
 CONFIG_ESP_HOSTED_SDIO_SLOT_1=y
 
+# DO NOT enable CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM on this board.
+#
+# The problem it was reached for: the SDIO RX streaming double-buffer is
+# allocated from internal DMA RAM, and when that pool runs dry
+# sdio_rx_get_buffer() does not degrade — it hits a hard assert and panics:
+#
+#   assert failed: sdio_rx_get_buffer sdio_drv.c:953 (*buf)
+#
+# Moving those buffers to PSRAM (=y) does stop that assert, but it breaks
+# the SDIO *transmit* path on this hardware. Measured 2026-08-01:
+#
+#   E H_SDIO_DRV: sdio_write_task: 0: Failed to send data: 258 54 54
+#   E H_SDIO_DRV: Unrecoverable host sdio state
+#   I os_wrapper_esp: Restarting host
+#
+# 258 is ESP_ERR_TIMEOUT. Writes time out, the driver declares the link
+# unrecoverable and restarts the host — trading a crash every ~60 s for a
+# restart every ~6 s, plus visibly stuttering jog motion because the
+# transport stalls mid-stream. The option's own help text says to leave it
+# disabled "when transport latency must be minimised"; a jog stream is
+# exactly that case.
+#
+# Fix the RX starvation by leaving more internal DMA RAM free (below)
+# instead of relocating the buffers.
+# CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM is not set
+
+# Internal-RAM headroom for the SDIO transport.
+#
+# Both knobs push general-purpose allocations out to PSRAM so the internal
+# DMA-capable pool stays available for the transport, which cannot use
+# anything else:
+#   ALWAYSINTERNAL — allocations at or below this size go to internal RAM
+#                    by default. Dropping 16 KiB -> 4 KiB sends the medium
+#                    allocations (LVGL objects, WS buffers) to PSRAM.
+#   RESERVE_INTERNAL — internal RAM held back exclusively for DMA-capable
+#                    and internal-only requests. This is the pool
+#                    sdio_rx_get_buffer() draws from.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
+
 # Leave WiFi IRAM room for LVGL
 CONFIG_ESP_WIFI_IRAM_OPT=n
 CONFIG_ESP_WIFI_RX_IRAM_OPT=n

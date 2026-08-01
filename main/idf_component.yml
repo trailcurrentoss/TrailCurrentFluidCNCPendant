@@ -8,5 +8,11 @@ dependencies:
     public: true
   espressif/esp_wifi_remote:
     version: "*"
+  # Pinned EXACT: with "*" a dependency re-resolution (2026-08-01) silently
+  # jumped esp_hosted 2.12.9 -> 3.0.5, whose rewritten SDIO bring-up fails
+  # on this board's C6 slave (eh_sdio "card init failed" -> esp_wifi_init
+  # aborts -> boot loop). 2.12.9 is the version validated on this hardware;
+  # bump deliberately and retest SDIO bring-up + a long jog session before
+  # trusting anything newer.
   espressif/esp_hosted:
-    version: "*"
+    version: "==2.12.9"

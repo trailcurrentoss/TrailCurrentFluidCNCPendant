@@ -195,6 +195,20 @@ esp_err_t wifi_setup_init(wifi_setup_state_cb_t state_cb, void *user_ctx)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    /* Disable modem power save. The IDF default (WIFI_PS_MIN_MODEM) naps
+     * the radio between DTIM beacons; unicast frames to the pendant get
+     * buffered at the AP and delivered late, TCP ACKs back to FluidNC lag,
+     * and FluidNC's WebSocket server times out its sends and RSTs the
+     * connection — observed on the bench as unprovoked "Connection reset
+     * by peer" on an otherwise idle link. A realtime jog pendant wants
+     * minimum WiFi latency, and next to the 1024x600 backlight the radio's
+     * power draw is irrelevant. (Goes through ESP-Hosted to the C6 slave;
+     * the remote-wifi shim forwards this call.) */
+    err = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_set_ps(WIFI_PS_NONE) failed: %s", esp_err_to_name(err));
+    }
+
     s_initialized = true;
     ESP_LOGI(TAG, "initialized (STA started)");
     return ESP_OK;

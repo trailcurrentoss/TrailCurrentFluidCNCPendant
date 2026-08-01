@@ -5,6 +5,7 @@ idf_component_register(
         "actions.c"
         "vars.c"
         "thumbstick_monitor.c"
+        "battery_monitor.c"
         "ui/screens.c"
         "ui/styles.c"
         "ui/images.c"

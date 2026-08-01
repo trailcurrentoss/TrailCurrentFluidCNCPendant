@@ -487,6 +487,22 @@ void app_state_refresh_files_display(void)
     bsp_display_unlock();
 }
 
+void app_state_files_show_loading(void)
+{
+    bsp_display_lock(0);
+    if (objects.files_count) {
+        lv_label_set_text(objects.files_count, "Loading…");
+    }
+    /* Hide any rows still left over from the previous list so the user
+     * doesn't see stale filenames during the fetch. The next
+     * refresh_files_display_locked() pass re-shows the rows that are
+     * still in the freshly-arrived list. */
+    for (size_t i = 0; i < MAX_FILES; i++) {
+        if (s_file_row[i]) lv_obj_add_flag(s_file_row[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    bsp_display_unlock();
+}
+
 /* Push the vars.c "no controller yet" defaults into every UI-bound widget.
  * Called once at boot, immediately after ui_init() — overwrites the
  * placeholder text baked into the .eez-project file so the user sees a
@@ -539,6 +555,46 @@ void app_state_paint_initial_state(void)
 
     /* Empty file list (none refreshed from controller yet). */
     app_state_refresh_files_display();
+
+    /* FluidConnect host/port textareas. These are NOT vars.c-bound — they're
+     * plain LVGL textareas whose contents EEZ Studio bakes in as placeholder
+     * text. Nothing else pushes the saved config into them, so without this
+     * the page comes up showing the .eez-project placeholder after every
+     * reboot and the saved host looks lost. It isn't — pendant_config_init()
+     * has already read it out of NVS by the time we get here. */
+    {
+        const pendant_config_t *cfg = pendant_config_get();
+        bsp_display_lock(0);
+        if (objects.fluid_host_input && cfg->fluid_host[0]) {
+            lv_textarea_set_text(objects.fluid_host_input, cfg->fluid_host);
+        }
+        if (objects.fluid_port_input) {
+            char port_buf[8];
+            snprintf(port_buf, sizeof(port_buf), "%u", (unsigned)cfg->fluid_port);
+            lv_textarea_set_text(objects.fluid_port_input, port_buf);
+        }
+
+        /* Transport selector. Two buttons form a CHECKED-state radio group
+         * driven entirely from C (EEZ Studio owns the CHECKED styling).
+         * action_set_fluid_transport paints the selection when the user
+         * taps; this paints it at boot from the saved config. WebSocket is
+         * retired — pendant_config migrates any stored value to telnet
+         * before we get here. */
+        const int sel = (int)cfg->fluid_transport;
+        lv_obj_t *want = (sel == PENDANT_TRANSPORT_UART) ? objects.fluid_tport_0
+                                                         : objects.fluid_tport_2;
+        lv_obj_t *const tports[] = { objects.fluid_tport_0, objects.fluid_tport_2 };
+        for (int i = 0; i < (int)(sizeof(tports)/sizeof(*tports)); i++) {
+            if (!tports[i]) continue;
+            if (tports[i] == want) lv_obj_add_state(tports[i],   LV_STATE_CHECKED);
+            else                   lv_obj_clear_state(tports[i], LV_STATE_CHECKED);
+        }
+
+        bsp_display_unlock();
+        ESP_LOGI(TAG, "FluidConnect fields prefilled — host=%s port=%u transport=%d",
+                 cfg->fluid_host[0] ? cfg->fluid_host : "(empty)",
+                 (unsigned)cfg->fluid_port, sel);
+    }
 }
 #endif /* HAVE_UI */
 
@@ -922,10 +978,11 @@ void app_state_set_pendant_tab(int tab_id)
      * the user sees current SD contents, not whatever was cached from the
      * boot-time refresh. The display repaint happens when the dispatcher
      * finishes collecting entries (it fires a status callback on the "ok"
-     * that closes the listing reply). */
+     * that closes the listing reply). Show "Loading…" in the meantime so
+     * the user knows the page is alive while the round-trip completes. */
     if (tab_id == PENDANT_TAB_FILES) {
         fluidnc_refresh_files();
-        app_state_refresh_files_display();
+        app_state_files_show_loading();
     }
 #else
     (void)tab_id;

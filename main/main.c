@@ -14,6 +14,7 @@
 #include "app_state.h"
 #include "pendant_config.h"
 #include "thumbstick_monitor.h"
+#include "battery_monitor.h"
 
 #if __has_include("ui/ui.h")
 #  include "ui/ui.h"
@@ -81,6 +82,27 @@ static void restore_user_settings_from_nvs(void)
         ESP_LOGI(TAG, "restored jog_feed=%d mm/min", (int)jog_feed);
     } else {
         set_var_default_jog_feed(get_var_default_jog_feed());
+    }
+
+    /* Probe parameters — written by action_probe_edit_done as strings so
+     * the user's typed value (e.g. "19.05") survives reboot. If the key
+     * isn't present yet the vars.c defaults apply. */
+    char buf[16];
+    size_t len;
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_plate", buf, &len) == ESP_OK) {
+        set_var_probe_plate_thickness(buf);
+        ESP_LOGI(TAG, "restored probe plate=%s", buf);
+    }
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_feed", buf, &len) == ESP_OK) {
+        set_var_probe_feed(buf);
+        ESP_LOGI(TAG, "restored probe feed=%s", buf);
+    }
+    len = sizeof(buf);
+    if (nvs_get_str(nvs, "p_travel", buf, &len) == ESP_OK) {
+        set_var_probe_max_travel(buf);
+        ESP_LOGI(TAG, "restored probe travel=%s", buf);
     }
 
     nvs_close(nvs);
@@ -227,6 +249,9 @@ void app_main(void)
 
     /* --- Diagnostic: thumbstick wiring monitor (logs ADC + digital state). --- */
     thumbstick_monitor_start();
+
+    /* --- Battery monitor: on-board voltage divider on GPIO20 -> SOC + charging. --- */
+    battery_monitor_start();
 
     /* --- Boot the state machine; this advances to WIFI_SETUP or WIFI_CONNECTING
      *     depending on whether NVS already has credentials. --- */
