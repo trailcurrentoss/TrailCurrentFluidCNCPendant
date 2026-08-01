@@ -243,9 +243,11 @@ void action_file_select(lv_event_t *e)
     }
     s_selected_file_idx = ud;
 
-    /* Update the SELECTED card on the right side of the Files page. fluidnc
-     * only exposes name+size+date today; runtime and line count stay "-"
-     * until the real backend inspects the file or parses its header. */
+    /* Update the SELECTED card on the right side of the Files page. The
+     * runtime/lines/bounds rows were removed 2026-08-01 — populating them
+     * would require fetching the file's contents from the controller, which
+     * the protocol doesn't provide for free. The size row (files_det_bd_*)
+     * remains: size comes straight from the $SD/List reply. */
     if (objects.files_sel_name) {
         lv_label_set_text(objects.files_sel_name, files[ud].name);
     }
@@ -256,8 +258,6 @@ void action_file_select(lv_event_t *e)
         else            snprintf(buf, sizeof(buf), "%u KB", (unsigned)kb);
         lv_label_set_text(objects.files_det_bd_val, buf);
     }
-    if (objects.files_det_rt_val) lv_label_set_text(objects.files_det_rt_val, "-");
-    if (objects.files_det_ln_val) lv_label_set_text(objects.files_det_ln_val, "-");
     ESP_LOGI(TAG, "file selected idx=%d name=%s", ud, files[ud].name);
 }
 void action_file_load_run(lv_event_t *e)
@@ -454,7 +454,9 @@ void action_probe_start(lv_event_t *e)
 /* ---------- Macros ---------- */
 static const char *const k_macros[] = {
     "G53 G90 G0 Z0\nG53 G0 X0 Y0",         /* Go To Front  */
-    "M6",                                   /* Tool Change  */
+    /* Go To X0 Y0 (work coords): full Z retract in machine coords FIRST so
+     * the tool clears clamps/stock, then rapid to the job's XY zero. */
+    "G53 G90 G0 Z0\nG90 G0 X0 Y0",         /* Go To X, Y   */
     "G38.2 Z-25 F100",                      /* Probe Z      */
     "M3 S8000\nG4 P60\nM5",                 /* Spindle Warm */
     "G10 L20 P1 X0 Y0 Z0",                  /* Set G54 Zero */

@@ -235,7 +235,6 @@ typedef struct _objects_t {
     lv_obj_t *dash_job_bar;
     lv_obj_t *dash_job_elapsed;
     lv_obj_t *dash_job_eta;
-    lv_obj_t *dash_job_line;
     lv_obj_t *dash_tq_spindle;
     lv_obj_t *dash_tq_icon_spindle;
     lv_obj_t *dash_tq_lbl_spindle;
@@ -587,10 +586,6 @@ typedef struct _objects_t {
     lv_obj_t *files_sel_caption;
     lv_obj_t *files_sel_icon;
     lv_obj_t *files_sel_name;
-    lv_obj_t *files_det_rt_lbl;
-    lv_obj_t *files_det_rt_val;
-    lv_obj_t *files_det_ln_lbl;
-    lv_obj_t *files_det_ln_val;
     lv_obj_t *files_det_bd_lbl;
     lv_obj_t *files_det_bd_val;
     lv_obj_t *files_btn_load;

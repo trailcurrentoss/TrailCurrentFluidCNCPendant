@@ -293,6 +293,21 @@ void        set_var_hold_label(const char *v)
     bsp_display_lock(0);
     strlcpy(s_v.hold_label, v ? v : "", sizeof(s_v.hold_label));
     STATUSBAR_FANOUT_TEXT(status_hold_label, s_v.hold_label);
+    /* The Run page has its own full-size hold button — keep it in lockstep
+     * with the status-bar pill (it previously never flipped to RESUME). */
+    if (objects.run_btn_hold_lbl) {
+        lv_label_set_text(objects.run_btn_hold_lbl, s_v.hold_label);
+    }
+    /* Icon follows the label: pause glyph while running (tap = hold),
+     * play glyph while held (tap = resume). U+F04C / U+F04B — both are
+     * the first codepoints in the fa subsets. */
+    const char *icon = (strcmp(s_v.hold_label, "RESUME") == 0)
+                     ? "\xEF\x81\x8B"   /* U+F04B play  */
+                     : "\xEF\x81\x8C";  /* U+F04C pause */
+    STATUSBAR_FANOUT_TEXT(status_hold_icon, icon);
+    if (objects.run_btn_hold_icon) {
+        lv_label_set_text(objects.run_btn_hold_icon, icon);
+    }
     bsp_display_unlock();
 }
 
@@ -485,7 +500,8 @@ static void job_line_widgets_update_locked(void)
     } else {
         snprintf(buf, sizeof(buf), "Line %d", (int)s_v.job_line);
     }
-    if (objects.dash_job_line) lv_label_set_text(objects.dash_job_line, buf);
+    /* dash_job_line removed 2026-08-01 — line numbers aren't derivable
+     * without fetching the file (see Files-page detail rows). */
     if (objects.run_hdr_line)  lv_label_set_text(objects.run_hdr_line,  buf);
 }
 void set_var_job_line(int32_t v)
