@@ -586,6 +586,7 @@ typedef struct _objects_t {
     lv_obj_t *files_list_card;
     lv_obj_t *files_caption;
     lv_obj_t *files_count;
+    lv_obj_t *files_spinner;
     lv_obj_t *files_sel_card;
     lv_obj_t *files_sel_caption;
     lv_obj_t *files_sel_icon;

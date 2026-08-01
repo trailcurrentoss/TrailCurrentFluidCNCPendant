@@ -383,8 +383,14 @@ static void handle_line(const char *line)
             memset(f, 0, sizeof(*f));
             if (fluidnc_proto_parse_file_entry(line, f->name, sizeof(f->name),
                                                &f->size_bytes)) {
-                f->date[0] = '\0';      /* FluidNC doesn't report mtime */
-                s_files_n++;
+                /* Only surface runnable g-code — the SD card also carries
+                 * config.yaml, index.html.gz, logs etc., none of which the
+                 * user should be able to select as a job. */
+                const char *dot = strrchr(f->name, '.');
+                if (dot && strcasecmp(dot, ".nc") == 0) {
+                    f->date[0] = '\0';  /* FluidNC doesn't report mtime */
+                    s_files_n++;
+                }
             }
         }
         break;
@@ -767,6 +773,39 @@ esp_err_t fluidnc_zero_axis(int axis)
     else if (axis == 1) snprintf(buf, sizeof(buf), "G10 L20 P0 Y0\n");
     else if (axis == 2) snprintf(buf, sizeof(buf), "G10 L20 P0 Z0\n");
     else return ESP_ERR_INVALID_ARG;
+    return write_line(buf);
+}
+
+/* Limit toggles — FluidNC has no $20/$21; limits live in its config tree
+ * and are settable at runtime with "$/<path>=<value>" (volatile: a
+ * controller reboot reverts to config.yaml). Soft limits are per-axis;
+ * hard limits are per-motor — motor0 covers single-motor axes, and a
+ * dual-motor gantry's motor1 keeps its yaml value (the switch pins are
+ * usually shared, so motor0 alone still changes the behavior).
+ *
+ * NOTE: soft limits only actually constrain motion when the machine has
+ * been HOMED and each axis's max_travel in the yaml is correct — grbl
+ * semantics: with no home reference the firmware cannot know where the
+ * envelope is. */
+esp_err_t fluidnc_set_soft_limits(bool on)
+{
+    char buf[144];
+    const char *v = on ? "true" : "false";
+    snprintf(buf, sizeof(buf),
+             "$/axes/x/soft_limits=%s\n"
+             "$/axes/y/soft_limits=%s\n"
+             "$/axes/z/soft_limits=%s\n", v, v, v);
+    return write_line(buf);
+}
+
+esp_err_t fluidnc_set_hard_limits(bool on)
+{
+    char buf[192];
+    const char *v = on ? "true" : "false";
+    snprintf(buf, sizeof(buf),
+             "$/axes/x/motor0/hard_limits=%s\n"
+             "$/axes/y/motor0/hard_limits=%s\n"
+             "$/axes/z/motor0/hard_limits=%s\n", v, v, v);
     return write_line(buf);
 }
 

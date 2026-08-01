@@ -113,6 +113,9 @@ int       fluidnc_jog_outstanding(void);
 esp_err_t fluidnc_zero_axis(int axis);
 
 esp_err_t fluidnc_home_all(void);
+/* Runtime (volatile) limit overrides — see implementation notes. */
+esp_err_t fluidnc_set_soft_limits(bool on);
+esp_err_t fluidnc_set_hard_limits(bool on);
 esp_err_t fluidnc_set_wcs(int wcs_index);            /* 0..5 = G54..G59 */
 esp_err_t fluidnc_set_units(pendant_units_t u);
 

@@ -480,13 +480,22 @@ static bool switch_state(lv_event_t *e)
     lv_obj_t *sw = lv_event_get_target(e);
     return sw && lv_obj_has_state(sw, LV_STATE_CHECKED);
 }
+/* Limit toggles: persist the pendant-side preference AND push the change
+ * to the controller. The NVS bool alone did nothing to the machine —
+ * measured on the bench as "soft limits enabled, still hits the switches".
+ * The controller push is volatile (reverts to config.yaml on controller
+ * reboot); the yaml remains the authoritative default. */
 void action_toggle_soft_limits(lv_event_t *e)
 {
-    pendant_config_set_soft_limits(switch_state(e));
+    bool on = switch_state(e);
+    pendant_config_set_soft_limits(on);
+    fluidnc_set_soft_limits(on);
 }
 void action_toggle_hard_limits(lv_event_t *e)
 {
-    pendant_config_set_hard_limits(switch_state(e));
+    bool on = switch_state(e);
+    pendant_config_set_hard_limits(on);
+    fluidnc_set_hard_limits(on);
 }
 void action_toggle_home_on_boot(lv_event_t *e)
 {

@@ -417,6 +417,12 @@ static void refresh_files_display_locked(void)
     fluidnc_file_t files[MAX_FILES];
     size_t n = fluidnc_get_files(files, sizeof(files) / sizeof(*files));
 
+    /* The listing has arrived (or we're painting cached state) — the
+     * loading spinner's job is done either way. */
+    if (objects.files_spinner) {
+        lv_obj_add_flag(objects.files_spinner, LV_OBJ_FLAG_HIDDEN);
+    }
+
     for (size_t i = 0; i < MAX_FILES; i++) {
         if (i < n) {
             if (!s_file_row[i]) create_file_row_locked((int)i);
@@ -495,7 +501,11 @@ void app_state_files_show_loading(void)
 {
     bsp_display_lock(0);
     if (objects.files_count) {
-        lv_label_set_text(objects.files_count, "Loading…");
+        /* ASCII dots — Montserrat's built-in subset has no U+2026. */
+        lv_label_set_text(objects.files_count, "Loading...");
+    }
+    if (objects.files_spinner) {
+        lv_obj_clear_flag(objects.files_spinner, LV_OBJ_FLAG_HIDDEN);
     }
     /* Hide any rows still left over from the previous list so the user
      * doesn't see stale filenames during the fetch. The next
