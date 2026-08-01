@@ -935,9 +935,27 @@ esp_err_t fluidnc_probe(int type, float plate_thickness_mm, float feed_mm_min, f
     int len = 0;
     switch (type) {
     case 0: {
-        /* "G38.2 Z-<travel> F<feed>" → "G10 L20 P0 Z<plate>" → "G0 Z<plate+5>" */
+        /* Probe DOWN by max_travel from the CURRENT work Z.
+         *
+         * G38.2 uses the modal distance mode — G90 absolute by default —
+         * so a bare "G38.2 Z-25" means "probe toward work Z = -25", NOT
+         * "probe 25 mm down". Measured on the bench: with work Z at about
+         * -17.8 the cycle stopped after ~7 mm (on reaching Z-25) and
+         * alarmed Probe Fail Contact. Compute the absolute target from
+         * the cached work position instead of switching to G91: a failed
+         * probe alarms out before any restore line runs, and a controller
+         * stranded in relative mode turns every later absolute move into
+         * a crash. G21 on the line pins mm in case a g-code file left the
+         * controller in inches.
+         *
+         * On success: set work Z to the plate thickness, then lift 5 mm
+         * clear (both absolute — correct in G90 as-is). On failure the
+         * alarm rejects the queued follow-ups, which is exactly right. */
         char a[64], b[48], c[48];
-        snprintf(a, sizeof(a), "G38.2 Z-%.3f F%.1f\n", max_travel_mm, feed_mm_min);
+        status_lock();
+        float z0 = s_status.wpos.z;
+        status_unlock();
+        snprintf(a, sizeof(a), "G21 G38.2 Z%.3f F%.1f\n", z0 - max_travel_mm, feed_mm_min);
         snprintf(b, sizeof(b), "G10 L20 P0 Z%.3f\n",   plate_thickness_mm);
         snprintf(c, sizeof(c), "G0 Z%.3f\n",           plate_thickness_mm + 5.0f);
         len = snprintf(buf, sizeof(buf), "%s%s%s", a, b, c);

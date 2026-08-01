@@ -348,6 +348,11 @@ void        set_var_work_dro_z(const char *v)
     strlcpy(s_v.work_dro_z, v ? v : "", sizeof(s_v.work_dro_z));
     if (objects.dash_dro_z) lv_label_set_text(objects.dash_dro_z, s_v.work_dro_z);
     if (objects.jog_work_z) lv_label_set_text(objects.jog_work_z, s_v.work_dro_z);
+    /* Probe page "CURRENT Z (WORK)" readout — same value, bigger font.
+     * Was authored as a static "0.000" placeholder and never painted, so
+     * probing visibly "did nothing" on this page even when the offset was
+     * applied correctly at the controller. */
+    if (objects.probe_z_value) lv_label_set_text(objects.probe_z_value, s_v.work_dro_z);
     bsp_display_unlock();
 }
 

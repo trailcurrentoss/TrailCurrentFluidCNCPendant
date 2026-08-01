@@ -353,6 +353,10 @@ static void probe_edit_hide_locked(void)
 void action_probe_edit_field(lv_event_t *e)
 {
     int ud = evt_user_data(e);
+    ESP_LOGI(TAG, "[BTN] probe edit field %d tapped (panel=%p input=%p kb=%p)",
+             ud, (void *)objects.probe_edit_panel,
+             (void *)objects.probe_edit_input,
+             (void *)objects.probe_edit_keyboard);
     if (!objects.probe_edit_panel || !objects.probe_edit_input
         || !objects.probe_edit_keyboard) return;
 
