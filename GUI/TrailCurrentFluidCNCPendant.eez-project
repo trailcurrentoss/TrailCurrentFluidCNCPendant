@@ -959,6 +959,14 @@
       "localVariables": [],
       "userProperties": [],
       "name": "SendGcode"
+    },
+    {
+      "objID": "22cd367f-7f40-75d4-d5f8-4e12c89380c6",
+      "components": [],
+      "connectionLines": [],
+      "localVariables": [],
+      "userProperties": [],
+      "name": "OtaToggle"
     }
   ],
   "userPages": [
@@ -29969,6 +29977,158 @@
                           "group": "",
                           "groupIndex": 0,
                           "text": "Disconnected",
+                          "textType": "literal",
+                          "longMode": "WRAP",
+                          "recolor": false
+                        },
+                        {
+                          "objID": "da51c041-1bee-6bf2-f605-6a4b563bf1b1",
+                          "type": "LVGLButtonWidget",
+                          "left": 18,
+                          "top": 170,
+                          "width": 280,
+                          "height": 48,
+                          "customInputs": [],
+                          "customOutputs": [],
+                          "style": {
+                            "objID": "837a295e-70d1-af55-35e5-a47136440041",
+                            "useStyle": "default",
+                            "conditionalStyles": [],
+                            "childStyles": []
+                          },
+                          "timeline": [],
+                          "eventHandlers": [
+                            {
+                              "objID": "46d2b0fa-aa9e-fc06-8fe5-091d5bb36ee9",
+                              "eventName": "CLICKED",
+                              "handlerType": "action",
+                              "action": "OtaToggle",
+                              "userData": 0
+                            }
+                          ],
+                          "identifier": "settings_ota_btn",
+                          "leftUnit": "px",
+                          "topUnit": "px",
+                          "widthUnit": "px",
+                          "heightUnit": "px",
+                          "children": [
+                            {
+                              "objID": "f7fa7eca-5652-7329-42ed-c2da6cabb51d",
+                              "type": "LVGLLabelWidget",
+                              "left": 0,
+                              "top": 16,
+                              "width": 280,
+                              "height": 16,
+                              "customInputs": [],
+                              "customOutputs": [],
+                              "style": {
+                                "objID": "11a37c44-8902-adde-10ff-e47f615aa34b",
+                                "useStyle": "default",
+                                "conditionalStyles": [],
+                                "childStyles": []
+                              },
+                              "timeline": [],
+                              "eventHandlers": [],
+                              "identifier": "settings_ota_btn_lbl",
+                              "leftUnit": "px",
+                              "topUnit": "px",
+                              "widthUnit": "px",
+                              "heightUnit": "px",
+                              "children": [],
+                              "widgetFlags": "",
+                              "hiddenFlagType": "literal",
+                              "clickableFlag": false,
+                              "clickableFlagType": "literal",
+                              "flagScrollbarMode": "",
+                              "flagScrollDirection": "",
+                              "scrollSnapX": "",
+                              "scrollSnapY": "",
+                              "checkedState": false,
+                              "checkedStateType": "literal",
+                              "disabledStateType": "literal",
+                              "states": "",
+                              "useStyle": "LabelDefault",
+                              "localStyles": {
+                                "objID": "0accf8b5-b8a8-595b-667d-58560a1b7f00",
+                                "definition": {
+                                  "MAIN": {
+                                    "DEFAULT": {
+                                      "text_font": "MONTSERRAT_12",
+                                      "text_align": "CENTER",
+                                      "text_color": "TextSecondary"
+                                    }
+                                  }
+                                }
+                              },
+                              "group": "",
+                              "groupIndex": 0,
+                              "text": "UPDATE OVER WIFI",
+                              "textType": "literal",
+                              "longMode": "WRAP",
+                              "recolor": false
+                            }
+                          ],
+                          "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_ON_FOCUS|SCROLL_WITH_ARROW|SNAPPABLE",
+                          "hiddenFlagType": "literal",
+                          "clickableFlag": true,
+                          "clickableFlagType": "literal",
+                          "flagScrollbarMode": "",
+                          "flagScrollDirection": "",
+                          "scrollSnapX": "",
+                          "scrollSnapY": "",
+                          "checkedState": false,
+                          "checkedStateType": "literal",
+                          "disabledStateType": "literal",
+                          "states": "",
+                          "useStyle": "BtnDark",
+                          "localStyles": {
+                            "objID": "2187270a-f36d-1dbb-faba-15e9a938e543"
+                          },
+                          "group": "",
+                          "groupIndex": 0
+                        },
+                        {
+                          "objID": "8ffb8afc-0603-45aa-927a-fa49b7f92549",
+                          "type": "LVGLLabelWidget",
+                          "left": 18,
+                          "top": 232,
+                          "width": 780,
+                          "height": 16,
+                          "customInputs": [],
+                          "customOutputs": [],
+                          "style": {
+                            "objID": "2fe6e4b2-b2e2-5e2c-783d-5c54e133c78c",
+                            "useStyle": "default",
+                            "conditionalStyles": [],
+                            "childStyles": []
+                          },
+                          "timeline": [],
+                          "eventHandlers": [],
+                          "identifier": "settings_ota_status",
+                          "leftUnit": "px",
+                          "topUnit": "px",
+                          "widthUnit": "px",
+                          "heightUnit": "px",
+                          "children": [],
+                          "widgetFlags": "",
+                          "hiddenFlagType": "literal",
+                          "clickableFlag": false,
+                          "clickableFlagType": "literal",
+                          "flagScrollbarMode": "",
+                          "flagScrollDirection": "",
+                          "scrollSnapX": "",
+                          "scrollSnapY": "",
+                          "checkedState": false,
+                          "checkedStateType": "literal",
+                          "disabledStateType": "literal",
+                          "states": "",
+                          "useStyle": "LabelMuted",
+                          "localStyles": {
+                            "objID": "7c0dd756-ed09-de15-8f9b-3e491af92d6d"
+                          },
+                          "group": "",
+                          "groupIndex": 0,
+                          "text": "",
                           "textType": "literal",
                           "longMode": "WRAP",
                           "recolor": false

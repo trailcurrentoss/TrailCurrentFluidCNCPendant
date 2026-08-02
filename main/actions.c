@@ -34,6 +34,7 @@
 #include "fluidnc.h"
 #include "pendant_config.h"
 #include "wifi_setup.h"
+#include "ota_update.h"
 
 /* Jog step sizes (mm), indexed by the four jog_step_* buttons on the Jog
  * page. action_set_jog_step records the user's choice into s_jog_step_idx;
@@ -464,6 +465,51 @@ static const char *const k_macros[] = {
     "G53 G0 X-10 Y-10",                     /* Park Rear Right */
     "$X",                                   /* Unlock       */
 };
+/* ---------- OTA update (Settings -> System) ----------
+ *
+ * Toggle button: first tap starts the browser-upload OTA server and shows
+ * the URL; second tap stops it. The FluidNC link is closed while OTA mode
+ * is active — flash writes stall the CPU in bursts, and nobody should be
+ * jogging a spindle mid-update. On a successful upload the device reboots
+ * itself (ota_update.c); on manual exit the controller link resumes. */
+static void ota_status_paint(const char *msg)
+{
+    /* Called from the HTTP server task — display lock required. */
+    bsp_display_lock(0);
+    if (objects.settings_ota_status) {
+        lv_label_set_text(objects.settings_ota_status, msg ? msg : "");
+    }
+    bsp_display_unlock();
+}
+
+void action_ota_toggle(lv_event_t *e)
+{
+    (void)e;
+    if (!ota_update_active()) {
+        fluidnc_disconnect();
+        if (ota_update_start(ota_status_paint) == ESP_OK) {
+            char ip[20], msg[64];
+            wifi_setup_format_ip(ip, sizeof(ip));
+            snprintf(msg, sizeof(msg),
+                     "OTA active - open http://%s/ in a browser", ip);
+            ota_status_paint(msg);
+            if (objects.settings_ota_btn_lbl) {
+                lv_label_set_text(objects.settings_ota_btn_lbl, "EXIT UPDATE MODE");
+            }
+        } else {
+            ota_status_paint("Could not start OTA server");
+            fluidnc_connect();
+        }
+    } else {
+        ota_update_stop();
+        ota_status_paint("");
+        if (objects.settings_ota_btn_lbl) {
+            lv_label_set_text(objects.settings_ota_btn_lbl, "UPDATE OVER WIFI");
+        }
+        fluidnc_connect();
+    }
+}
+
 /* ---------- MDI console (Run page) ----------
  *
  * Custom single-layer g-code keypad. G-code is uppercase-only and uses a

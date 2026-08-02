@@ -964,6 +964,9 @@ typedef struct _objects_t {
     lv_obj_t *settings_sys_ui_val;
     lv_obj_t *settings_sys_net_lbl;
     lv_obj_t *settings_sys_net_val;
+    lv_obj_t *settings_ota_btn;
+    lv_obj_t *settings_ota_btn_lbl;
+    lv_obj_t *settings_ota_status;
     lv_obj_t *settings_panel_display;
     lv_obj_t *settings_display_hdr;
     lv_obj_t *settings_theme_card;

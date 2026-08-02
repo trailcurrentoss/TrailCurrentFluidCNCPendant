@@ -6,6 +6,7 @@ idf_component_register(
         "vars.c"
         "thumbstick_monitor.c"
         "battery_monitor.c"
+        "ota_update.c"
         "ui/screens.c"
         "ui/styles.c"
         "ui/images.c"
@@ -31,6 +32,8 @@ idf_component_register(
         fluidnc
         waveshare__esp32_p4_wifi6_touch_lcd_7b
     PRIV_REQUIRES
+        esp_http_server
+        app_update
         esp_adc
         esp_driver_gpio
 )

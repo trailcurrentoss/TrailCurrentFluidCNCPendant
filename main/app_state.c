@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_netif.h"
+#include "esp_app_desc.h"
 #include "lvgl.h"
 
 #include "bsp/display.h"
@@ -576,7 +577,14 @@ void app_state_paint_initial_state(void)
      * placeholder text so the page never shows stale .eez-project copy. */
     set_var_fw_version(get_var_fw_version());
     set_var_controller_info(get_var_controller_info());
-    set_var_ui_info(get_var_ui_info());
+    /* Interface row doubles as the OTA receipt: the build timestamp is the
+     * only way to confirm on-device that a WiFi update actually took. */
+    {
+        const esp_app_desc_t *app = esp_app_get_description();
+        char ui_buf[40];
+        snprintf(ui_buf, sizeof(ui_buf), "Built %s %s", app->date, app->time);
+        set_var_ui_info(ui_buf);
+    }
     /* Network row: owned by wifi_ui_refresh_connection_display_locked(),
      * whose "Disconnected" idle wording matches the authored placeholder. */
 

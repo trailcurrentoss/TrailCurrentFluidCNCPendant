@@ -1,5 +1,20 @@
-# Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x6000,
-phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, ,        26M,
-storage,  data, spiffs,  ,        5M,
+# OTA-capable layout (32 MB flash).
+#
+# nvs MUST stay at 0x9000/0x6000 — moving it would wipe WiFi credentials,
+# the FluidNC host config, and every user preference on the transition
+# flash. phy_init moves to make room for otadata; PHY calibration data
+# regenerates on first boot, losing nothing.
+#
+# Two 8 MB app slots (firmware is ~1.7 MB — ample headroom). The build
+# auto-generates ota_data_initial.bin so `idf.py flash` seeds otadata to
+# boot ota_0.
+#
+# CHANGING THIS TABLE REQUIRES ONE USB FLASH. After that, updates go over
+# WiFi via Settings -> System -> Update Over WiFi.
+# Name,   Type, SubType, Offset,   Size, Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+otadata,  data, ota,     0xf000,   0x2000,
+phy_init, data, phy,     0x11000,  0x1000,
+ota_0,    app,  ota_0,   0x20000,  8M,
+ota_1,    app,  ota_1,   0x820000, 8M,
+storage,  data, spiffs,  ,         5M,
