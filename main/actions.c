@@ -464,6 +464,23 @@ static const char *const k_macros[] = {
     "G53 G0 X-10 Y-10",                     /* Park Rear Right */
     "$X",                                   /* Unlock       */
 };
+/* MDI console on the Run page: send whatever is in the textarea as a raw
+ * g-code / $-command line, then clear it for the next entry. Fired by the
+ * SEND button and the keyboard's checkmark (READY on the textarea). */
+void action_send_gcode(lv_event_t *e)
+{
+    (void)e;
+    if (!objects.run_mdi_input) return;
+    const char *txt = lv_textarea_get_text(objects.run_mdi_input);
+    if (!txt) return;
+    while (*txt == ' ') txt++;          /* skip leading spaces */
+    if (*txt == '\0') return;           /* nothing to send */
+    ESP_LOGI(TAG, "[MDI] %s", txt);
+    if (fluidnc_send_line(txt) == ESP_OK) {
+        lv_textarea_set_text(objects.run_mdi_input, "");
+    }
+}
+
 void action_run_macro(lv_event_t *e)
 {
     int ud = evt_user_data(e);

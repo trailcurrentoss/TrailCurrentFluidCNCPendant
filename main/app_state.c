@@ -568,6 +568,13 @@ void app_state_paint_initial_state(void)
     set_var_rapid_ov_pct(get_var_rapid_ov_pct());
     set_var_spindle_ov_pct(get_var_spindle_ov_pct());
 
+    /* MDI console: point the always-visible keyboard at its textarea once.
+     * (The other keyboards get wired when their edit panels open; this one
+     * has no open/close cycle.) */
+    if (objects.run_mdi_keyboard && objects.run_mdi_input) {
+        lv_keyboard_set_textarea(objects.run_mdi_keyboard, objects.run_mdi_input);
+    }
+
     /* Settings → System rows — push the vars.c defaults over the authored
      * placeholder text so the page never shows stale .eez-project copy. */
     set_var_fw_version(get_var_fw_version());
