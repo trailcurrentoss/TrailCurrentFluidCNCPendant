@@ -94,6 +94,11 @@ void app_state_files_show_loading(void);
  * task. */
 void app_state_paint_initial_state(void);
 
+/* One-time setup for the Run page's MDI console (custom g-code keypad +
+ * keyboard→textarea wiring). Implemented in actions.c with the rest of the
+ * MDI code; called from app_state_paint_initial_state() after ui_init(). */
+void mdi_console_init(void);
+
 /* Toggle the CHECKED state across every dynamically-created file row so
  * the visual "selected row" follows the user's tap. Called from
  * action_file_select. idx is the row index (0-based, MAX_FILES exclusive);

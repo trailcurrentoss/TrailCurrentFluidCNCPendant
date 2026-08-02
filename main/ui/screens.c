@@ -3773,6 +3773,7 @@ void create_screen_page_run() {
                             lv_obj_set_pos(obj, 14, 84);
                             lv_obj_set_size(obj, 680, 258);
                             lv_keyboard_set_mode(obj, LV_KEYBOARD_MODE_TEXT_UPPER);
+                            lv_obj_add_event_cb(obj, action_send_gcode, LV_EVENT_READY, (void *)0);
                             lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICK_FOCUSABLE|LV_OBJ_FLAG_SCROLL_ON_FOCUS);
                             lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
                             add_style_keyboard_default(obj);

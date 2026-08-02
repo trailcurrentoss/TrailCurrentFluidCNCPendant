@@ -464,9 +464,52 @@ static const char *const k_macros[] = {
     "G53 G0 X-10 Y-10",                     /* Park Rear Right */
     "$X",                                   /* Unlock       */
 };
-/* MDI console on the Run page: send whatever is in the textarea as a raw
- * g-code / $-command line, then clear it for the next entry. Fired by the
- * SEND button and the keyboard's checkmark (READY on the textarea). */
+/* ---------- MDI console (Run page) ----------
+ *
+ * Custom single-layer g-code keypad. G-code is uppercase-only and uses a
+ * narrow character set, so a purpose-built map beats the stock qwerty
+ * keyboard: no mode switching, every needed key one tap away, and keys are
+ * nearly twice stock size (10 per row max in a 680 px card).
+ *
+ *   1 2 3 4 5 6 7 8 9 0
+ *   G X Y Z F S T M
+ *   P I J K R H $ =
+ *   - . / [space] [bksp] [send]
+ *
+ * Letters cover motion/params (G X Y Z F S T M P I J K R H); $ = / make
+ * FluidNC console commands typable ($X, $SD/Run=..., $/axes/...).
+ *
+ * KNOWN, ACCEPTED canvas divergence: EEZ Studio has no keymap editor, so
+ * the canvas shows LVGL's stock TEXT_UPPER layout while the device shows
+ * this map. Geometry (position/size) still matches the canvas exactly —
+ * only the key labels differ. Agreed with the user 2026-08-01.
+ *
+ * The map/ctrl arrays must be static: LVGL stores the pointers. */
+static const char *const k_mdi_map[] = {
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
+    "G", "X", "Y", "Z", "F", "S", "T", "M", "\n",
+    "P", "I", "J", "K", "R", "H", "$", "=", "\n",
+    "-", ".", "/", " ", LV_SYMBOL_BACKSPACE, LV_SYMBOL_OK, "",
+};
+static const lv_btnmatrix_ctrl_t k_mdi_ctrl[] = {
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 3, 2, 2,
+};
+
+void mdi_console_init(void)
+{
+    if (!objects.run_mdi_keyboard || !objects.run_mdi_input) return;
+    lv_keyboard_set_textarea(objects.run_mdi_keyboard, objects.run_mdi_input);
+    lv_keyboard_set_map(objects.run_mdi_keyboard, LV_KEYBOARD_MODE_USER_1,
+                        k_mdi_map, k_mdi_ctrl);
+    lv_keyboard_set_mode(objects.run_mdi_keyboard, LV_KEYBOARD_MODE_USER_1);
+}
+
+/* Send whatever is in the textarea as a raw g-code / $-command line, then
+ * clear it for the next entry. Fired by the SEND button and the keypad's
+ * checkmark (READY on the keyboard). */
 void action_send_gcode(lv_event_t *e)
 {
     (void)e;

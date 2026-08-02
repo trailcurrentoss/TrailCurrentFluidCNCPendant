@@ -295,7 +295,7 @@
         "objID": "271cdaf7-7f28-de35-3dea-106e7d1bfcf0",
         "name": "job_file",
         "type": "string",
-        "defaultValue": "\"—\"",
+        "defaultValue": "\"\u2014\"",
         "persistent": false,
         "native": false
       },
@@ -439,7 +439,7 @@
         "objID": "3105ca2f-a9bd-d30b-310a-bb50daf92315",
         "name": "net_info",
         "type": "string",
-        "defaultValue": "\"—\"",
+        "defaultValue": "\"\u2014\"",
         "persistent": false,
         "native": false
       },
@@ -16884,7 +16884,15 @@
                         "childStyles": []
                       },
                       "timeline": [],
-                      "eventHandlers": [],
+                      "eventHandlers": [
+                        {
+                          "objID": "811b876f-da10-4835-6def-55c76e87bf3e",
+                          "eventName": "READY",
+                          "handlerType": "action",
+                          "action": "SendGcode",
+                          "userData": 0
+                        }
+                      ],
                       "identifier": "run_mdi_keyboard",
                       "leftUnit": "px",
                       "topUnit": "px",
