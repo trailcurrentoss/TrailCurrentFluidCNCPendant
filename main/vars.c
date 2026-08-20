@@ -77,6 +77,7 @@ static struct {
     int32_t  screen_brightness;
     int32_t  screen_timeout_value;
     int32_t  default_jog_feed;
+    int32_t  stick_jog_feed;
     int32_t  selected_theme;
 
     int32_t  battery_pct;
@@ -129,6 +130,10 @@ static struct {
     .screen_brightness     = 180,
     .screen_timeout_value  = 5,
     .default_jog_feed      = 1200,
+    /* Full-deflection analog-stick feed. Pre-NVS default matches the old
+     * behavior (stick capped by default_jog_feed, which defaulted to 1200);
+     * main.c seeds it from the legacy cap on first boot after the update. */
+    .stick_jog_feed        = 1200,
     .selected_theme        = 1,     /* 0 = Light (Default), 1 = Dark */
 
     /* Battery gauge starts hidden — the first battery_monitor sample fires
@@ -745,6 +750,22 @@ void    set_var_default_jog_feed(int32_t v)
     }
     if (objects.settings_mot_jog_slider) {
         lv_slider_set_value(objects.settings_mot_jog_slider, v, LV_ANIM_OFF);
+    }
+    bsp_display_unlock();
+}
+
+int32_t get_var_stick_jog_feed(void) { return s_v.stick_jog_feed; }
+void    set_var_stick_jog_feed(int32_t v)
+{
+    bsp_display_lock(0);
+    s_v.stick_jog_feed = v;
+    if (objects.settings_mot_stick_val) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d mm/min", (int)v);
+        lv_label_set_text(objects.settings_mot_stick_val, buf);
+    }
+    if (objects.settings_mot_stick_slider) {
+        lv_slider_set_value(objects.settings_mot_stick_slider, v, LV_ANIM_OFF);
     }
     bsp_display_unlock();
 }

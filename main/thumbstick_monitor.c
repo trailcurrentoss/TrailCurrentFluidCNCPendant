@@ -25,9 +25,13 @@ static const char *TAG = "thumbstick";
  * produces 25 % of the max feed, and the snap to full speed happens in the
  * outer third of the travel.
  *
- * X/Y feed cap is the user's `default_jog_feed` slider, hard-capped at
- * 1500 mm/min so a sloppy bump on a slider set to 6000 can't fling the
- * spindle across the table.
+ * X/Y feed cap is the user's `stick_jog_feed` setting (Settings → Motion →
+ * STICK JOG SPEED, 60–6000 mm/min). It used to be `default_jog_feed`
+ * hard-capped at 1500 mm/min; that crawled on large machines (a 4×8 ft bed
+ * takes minutes to cross at 1500), so full-deflection speed is now its own
+ * dedicated setting and the machine-scale judgment belongs to the user.
+ * main.c seeds it from the old effective cap on first boot so existing
+ * pendants keep their feel.
  *
  * Z feed cap is HALF of the X/Y cap — Z mistakes break tools and cut into
  * spoilboards, and the spindle weight makes Z always feel "fast." Slower
@@ -62,8 +66,10 @@ static const char *TAG = "thumbstick";
  * and not ~200 ms later. Smoothing belongs on the way up, never on the way
  * to a stop. */
 #define SMOOTH_ALPHA        0.35f
-#define MAX_FEED_XY_CEILING 1500.0f /* mm/min — slider clamp for X/Y */
-#define MAX_FEED_Z_CEILING   750.0f /* mm/min — half of XY ceiling */
+/* Defensive clamps only — the real range is enforced by the STICK JOG SPEED
+ * slider (60..6000). These just bound a corrupt/unset NVS value. */
+#define MAX_FEED_XY_CEILING 6000.0f /* mm/min — matches the slider max */
+#define MAX_FEED_Z_CEILING  3000.0f /* mm/min — half of XY ceiling */
 #define CALIBRATION_SAMPLES 24      /* averaged at startup */
 
 /* --- $J= emit throttling ----------------------------------------------------
@@ -400,17 +406,19 @@ static float gentle_curve(float d)
     return (d >= 0.0f) ? d * d : -(d * d);
 }
 
-/* Active feed cap: user's slider, hard-clamped per axis-group. */
+/* Active feed cap: user's STICK JOG SPEED slider, hard-clamped per
+ * axis-group. Deliberately independent of default_jog_feed (which drives
+ * the Jog-page buttons) — see the tuning comment at the top of the file. */
 static float max_feed_xy(void)
 {
-    float f = (float)get_var_default_jog_feed();
+    float f = (float)get_var_stick_jog_feed();
     if (f < 60.0f)                  f = 60.0f;
     if (f > MAX_FEED_XY_CEILING)    f = MAX_FEED_XY_CEILING;
     return f;
 }
 static float max_feed_z(void)
 {
-    float f = (float)get_var_default_jog_feed() * 0.5f;
+    float f = (float)get_var_stick_jog_feed() * 0.5f;
     if (f < 30.0f)                  f = 30.0f;
     if (f > MAX_FEED_Z_CEILING)     f = MAX_FEED_Z_CEILING;
     return f;

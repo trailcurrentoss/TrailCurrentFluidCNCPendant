@@ -84,6 +84,25 @@ static void restore_user_settings_from_nvs(void)
         set_var_default_jog_feed(get_var_default_jog_feed());
     }
 
+    int16_t stick_feed = 0;
+    if (nvs_get_i16(nvs, "stick_feed", &stick_feed) == ESP_OK) {
+        if (stick_feed < 60)   stick_feed = 60;
+        if (stick_feed > 6000) stick_feed = 6000;
+        set_var_stick_jog_feed(stick_feed);
+        ESP_LOGI(TAG, "restored stick_feed=%d mm/min", (int)stick_feed);
+    } else {
+        /* First boot with this setting. Seed it from what the stick's
+         * effective cap USED to be — min(default_jog_feed, 1500) — so the
+         * stick feel doesn't change on already-deployed pendants until the
+         * user moves the new slider. */
+        int32_t seed = get_var_default_jog_feed();
+        if (seed > 1500) seed = 1500;
+        if (seed < 60)   seed = 60;
+        set_var_stick_jog_feed(seed);
+        ESP_LOGI(TAG, "stick_feed not set — seeded %d mm/min from legacy cap",
+                 (int)seed);
+    }
+
     /* Probe parameters — written by action_probe_edit_done as strings so
      * the user's typed value (e.g. "19.05") survives reboot. If the key
      * isn't present yet the vars.c defaults apply. */

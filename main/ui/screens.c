@@ -6769,6 +6769,75 @@ void create_screen_page_settings() {
                                         }
                                     }
                                 }
+                                {
+                                    // settings_mot_stick_card
+                                    lv_obj_t *obj = lv_obj_create(parent_obj);
+                                    objects.settings_mot_stick_card = obj;
+                                    lv_obj_set_pos(obj, 18, 330);
+                                    lv_obj_set_size(obj, 798, 130);
+                                    lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+                                    lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+                                    add_style_card(obj);
+                                    {
+                                        lv_obj_t *parent_obj = obj;
+                                        {
+                                            // settings_mot_stick_caption
+                                            lv_obj_t *obj = lv_label_create(parent_obj);
+                                            objects.settings_mot_stick_caption = obj;
+                                            lv_obj_set_pos(obj, 18, 12);
+                                            lv_obj_set_size(obj, 200, 12);
+                                            lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+                                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+                                            add_style_label_caption(obj);
+                                            lv_label_set_text(obj, "STICK JOG SPEED");
+                                        }
+                                        {
+                                            // settings_mot_stick_lbl
+                                            lv_obj_t *obj = lv_label_create(parent_obj);
+                                            objects.settings_mot_stick_lbl = obj;
+                                            lv_obj_set_pos(obj, 18, 30);
+                                            lv_obj_set_size(obj, 320, 18);
+                                            lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+                                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+                                            add_style_label_heading(obj);
+                                            lv_label_set_text(obj, "Analog stick max feed");
+                                        }
+                                        {
+                                            // settings_mot_stick_sub
+                                            lv_obj_t *obj = lv_label_create(parent_obj);
+                                            objects.settings_mot_stick_sub = obj;
+                                            lv_obj_set_pos(obj, 18, 54);
+                                            lv_obj_set_size(obj, 320, 14);
+                                            lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+                                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+                                            add_style_label_muted(obj);
+                                            lv_label_set_text(obj, "60 to 6000 mm/min");
+                                        }
+                                        {
+                                            // settings_mot_stick_slider
+                                            lv_obj_t *obj = lv_slider_create(parent_obj);
+                                            objects.settings_mot_stick_slider = obj;
+                                            lv_obj_set_pos(obj, 18, 88);
+                                            lv_obj_set_size(obj, 580, 14);
+                                            lv_slider_set_range(obj, 60, 6000);
+                                            lv_slider_set_value(obj, 1200, LV_ANIM_ON);
+                                            lv_obj_add_event_cb(obj, action_change_stick_jog_feed, LV_EVENT_VALUE_CHANGED, (void *)0);
+                                            lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_CHAIN_HOR|LV_OBJ_FLAG_SCROLL_CHAIN_VER|LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+                                            add_style_style_default_slider(obj);
+                                        }
+                                        {
+                                            // settings_mot_stick_val
+                                            lv_obj_t *obj = lv_label_create(parent_obj);
+                                            objects.settings_mot_stick_val = obj;
+                                            lv_obj_set_pos(obj, 620, 80);
+                                            lv_obj_set_size(obj, 160, 22);
+                                            lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+                                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+                                            add_style_label_heading(obj);
+                                            lv_label_set_text(obj, "1200 mm/min");
+                                        }
+                                    }
+                                }
                             }
                         }
                         {
@@ -7249,7 +7318,7 @@ void create_screen_page_settings() {
             lv_obj_set_style_pad_bottom(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_bg_opa(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-            create_user_widget_bottom_dock(obj, 987);
+            create_user_widget_bottom_dock(obj, 993);
         }
         {
             // PageSettings_alarm
@@ -7263,7 +7332,7 @@ void create_screen_page_settings() {
             lv_obj_set_style_pad_bottom(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_bg_opa(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-            create_user_widget_alarm_ribbon(obj, 1013);
+            create_user_widget_alarm_ribbon(obj, 1019);
         }
     }
     
@@ -7272,8 +7341,8 @@ void create_screen_page_settings() {
 
 void tick_screen_page_settings() {
     tick_user_widget_status_bar(861);
-    tick_user_widget_bottom_dock(987);
-    tick_user_widget_alarm_ribbon(1013);
+    tick_user_widget_bottom_dock(993);
+    tick_user_widget_alarm_ribbon(1019);
 }
 
 void create_user_widget_status_bar(lv_obj_t *parent_obj, int startWidgetIndex) {
@@ -8694,7 +8763,7 @@ void change_color_theme(uint32_t theme_index) {
     }
     
     {
-        int startWidgetIndex = 1013;
+        int startWidgetIndex = 1019;
         lv_obj_set_style_text_color(((lv_obj_t **)&objects)[startWidgetIndex + 1], lv_color_hex(theme_colors[theme_index][1]), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_text_color(((lv_obj_t **)&objects)[startWidgetIndex + 2], lv_color_hex(theme_colors[theme_index][1]), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_bg_color(((lv_obj_t **)&objects)[startWidgetIndex + 3], lv_color_hex(theme_colors[theme_index][11]), LV_PART_MAIN | LV_STATE_DEFAULT);

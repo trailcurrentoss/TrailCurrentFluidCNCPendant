@@ -61,6 +61,7 @@ extern void action_probe_edit_done(lv_event_t * e);
 extern void action_probe_kb_hide(lv_event_t * e);
 extern void action_send_gcode(lv_event_t * e);
 extern void action_ota_toggle(lv_event_t * e);
+extern void action_change_stick_jog_feed(lv_event_t * e);
 
 
 #ifdef __cplusplus

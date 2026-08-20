@@ -954,6 +954,12 @@ typedef struct _objects_t {
     lv_obj_t *settings_mot_jog_sub;
     lv_obj_t *settings_mot_jog_slider;
     lv_obj_t *settings_mot_jog_val;
+    lv_obj_t *settings_mot_stick_card;
+    lv_obj_t *settings_mot_stick_caption;
+    lv_obj_t *settings_mot_stick_lbl;
+    lv_obj_t *settings_mot_stick_sub;
+    lv_obj_t *settings_mot_stick_slider;
+    lv_obj_t *settings_mot_stick_val;
     lv_obj_t *settings_panel_system;
     lv_obj_t *settings_system_hdr;
     lv_obj_t *settings_sys_fw_lbl;

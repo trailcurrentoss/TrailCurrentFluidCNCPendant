@@ -62,14 +62,15 @@ enum FlowGlobalVariables {
     FLOW_GLOBAL_VARIABLE_SCREEN_BRIGHTNESS = 42,
     FLOW_GLOBAL_VARIABLE_SCREEN_TIMEOUT_VALUE = 43,
     FLOW_GLOBAL_VARIABLE_DEFAULT_JOG_FEED = 44,
-    FLOW_GLOBAL_VARIABLE_SELECTED_THEME = 45,
-    FLOW_GLOBAL_VARIABLE_BATTERY_PCT = 46,
-    FLOW_GLOBAL_VARIABLE_BATTERY_CHARGING = 47,
-    FLOW_GLOBAL_VARIABLE_BATTERY_VISIBLE = 48,
-    FLOW_GLOBAL_VARIABLE_PROBE_XY_TRAVEL = 49,
-    FLOW_GLOBAL_VARIABLE_PROBE_EDGE_DEPTH = 50,
-    FLOW_GLOBAL_VARIABLE_PROBE_TOOL_DIA = 51,
-    FLOW_GLOBAL_VARIABLE_PROBE_EDGE_THICK = 52
+    FLOW_GLOBAL_VARIABLE_STICK_JOG_FEED = 45,
+    FLOW_GLOBAL_VARIABLE_SELECTED_THEME = 46,
+    FLOW_GLOBAL_VARIABLE_BATTERY_PCT = 47,
+    FLOW_GLOBAL_VARIABLE_BATTERY_CHARGING = 48,
+    FLOW_GLOBAL_VARIABLE_BATTERY_VISIBLE = 49,
+    FLOW_GLOBAL_VARIABLE_PROBE_XY_TRAVEL = 50,
+    FLOW_GLOBAL_VARIABLE_PROBE_EDGE_DEPTH = 51,
+    FLOW_GLOBAL_VARIABLE_PROBE_TOOL_DIA = 52,
+    FLOW_GLOBAL_VARIABLE_PROBE_EDGE_THICK = 53
 };
 
 // Native global variables
@@ -164,6 +165,8 @@ extern int32_t get_var_screen_timeout_value();
 extern void set_var_screen_timeout_value(int32_t value);
 extern int32_t get_var_default_jog_feed();
 extern void set_var_default_jog_feed(int32_t value);
+extern int32_t get_var_stick_jog_feed();
+extern void set_var_stick_jog_feed(int32_t value);
 extern int32_t get_var_selected_theme();
 extern void set_var_selected_theme(int32_t value);
 extern int32_t get_var_battery_pct();

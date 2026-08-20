@@ -917,6 +917,26 @@ void action_change_jog_feed_default(lv_event_t *e)
     }
 }
 
+/* Slider value drag generates many events — dedup similarly. */
+static int32_t last_persisted_stick_feed = -1;
+
+void action_change_stick_jog_feed(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    int32_t value = lv_slider_get_value(slider);
+    set_var_stick_jog_feed(value);    /* updates "1200 mm/min" label */
+
+    if (value != last_persisted_stick_feed) {
+        last_persisted_stick_feed = value;
+        nvs_handle_t nvs;
+        if (nvs_open(USER_SETTINGS_NVS_NAMESPACE, NVS_READWRITE, &nvs) == ESP_OK) {
+            nvs_set_i16(nvs, "stick_feed", (int16_t)value);
+            nvs_commit(nvs);
+            nvs_close(nvs);
+        }
+    }
+}
+
 void action_change_theme(lv_event_t *e)
 {
     int theme_index = evt_user_data(e);     /* 0 = Light, 1 = Dark */
