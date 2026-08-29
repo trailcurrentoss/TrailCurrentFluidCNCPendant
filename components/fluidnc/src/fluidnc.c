@@ -218,6 +218,16 @@ static esp_err_t write_rt(uint8_t byte)
     return err;
 }
 
+/* grbl clamps feed and spindle overrides to 10..200 %. Mirror that range
+ * locally so an optimistic prediction can't run past what the controller
+ * will actually report back. Rapid is a 3-preset enum and doesn't use this. */
+static int clamp_ov_pct(int v)
+{
+    if (v < 10)  return 10;
+    if (v > 200) return 200;
+    return v;
+}
+
 /* GRBL 1.1 spec: WCO is sent only every ~30 status reports as a bandwidth
  * optimisation. Between WCO frames the client must cache the last-seen
  * offset and apply it to every MPos-only report — otherwise WPos goes
@@ -284,6 +294,11 @@ static void apply_status_report(const fluidnc_status_report_t *r)
 
     if (r->has_fs) {
         s_status.spindle_rpm = r->rpm;
+        /* Live path feedrate. grbl reports the CURRENT rate, i.e. already
+         * scaled by the feed override, which is exactly what you want to
+         * watch while nudging the override. It falls to 0 whenever the
+         * planner is idle. */
+        s_status.feed = r->feed;
     }
     if (r->has_ov) {
         s_status.feed_ov    = r->ov_feed;
@@ -896,26 +911,66 @@ esp_err_t fluidnc_adjust_override(int channel, int delta)
      *   spindle: 0x99 reset100, 0x9A +10, 0x9B -10, 0x9C +1, 0x9D -1
      *
      * The UI only emits delta = ±10 or 0 today. Rapid only has 3 discrete
-     * settings, so ±10 there maps to "step toward the next preset". */
+     * settings, so ±10 there maps to "step toward the next preset".
+     *
+     * OPTIMISTIC STATE — see fluidnc_spindle_on() for the same pattern and
+     * the same reasoning. Without it the override label/bar move only when
+     * the next `?` reply carries Ov:, so the perceived latency of a tap IS
+     * the controller's status round-trip. That round trip degrades badly
+     * when something else is hammering FluidNC — with the WebUI open the
+     * ESP32 is also serving HTTP plus a WebSocket push channel, and taps
+     * visibly lag. Predicting the new value locally decouples the UI from
+     * report latency entirely; the periodic report stays authoritative and
+     * corrects any disagreement (e.g. we clamped where the controller did
+     * not) within ~250 ms. */
+    uint8_t byte;
+    int     predicted;
+    int    *slot;
+
+    status_lock();
+    int cur_feed    = s_status.feed_ov;
+    int cur_rapid   = s_status.rapid_ov;
+    int cur_spindle = s_status.spindle_ov;
+    status_unlock();
+
     if (channel == 0) {       /* feed */
-        if (delta == 0)    return write_rt(0x90);
-        if (delta >= 10)   return write_rt(0x91);
-        if (delta <= -10)  return write_rt(0x92);
-        return delta > 0 ? write_rt(0x93) : write_rt(0x94);
+        slot = &s_status.feed_ov;
+        if      (delta == 0)   { byte = 0x90; predicted = 100; }
+        else if (delta >= 10)  { byte = 0x91; predicted = cur_feed + 10; }
+        else if (delta <= -10) { byte = 0x92; predicted = cur_feed - 10; }
+        else if (delta > 0)    { byte = 0x93; predicted = cur_feed + 1; }
+        else                   { byte = 0x94; predicted = cur_feed - 1; }
+        predicted = clamp_ov_pct(predicted);
+    } else if (channel == 1) { /* rapid — cycle: 25 -> 50 -> 100 */
+        slot = &s_status.rapid_ov;
+        if      (delta == 0)   { byte = 0x95; predicted = 100; }
+        else if (delta < 0)    { if (cur_rapid > 50) { byte = 0x96; predicted = 50; }
+                                 else                { byte = 0x97; predicted = 25; } }
+        else                   { if (cur_rapid < 50) { byte = 0x96; predicted = 50; }
+                                 else                { byte = 0x95; predicted = 100; } }
+    } else if (channel == 2) { /* spindle */
+        slot = &s_status.spindle_ov;
+        if      (delta == 0)   { byte = 0x99; predicted = 100; }
+        else if (delta >= 10)  { byte = 0x9A; predicted = cur_spindle + 10; }
+        else if (delta <= -10) { byte = 0x9B; predicted = cur_spindle - 10; }
+        else if (delta > 0)    { byte = 0x9C; predicted = cur_spindle + 1; }
+        else                   { byte = 0x9D; predicted = cur_spindle - 1; }
+        predicted = clamp_ov_pct(predicted);
+    } else {
+        return ESP_ERR_INVALID_ARG;
     }
-    if (channel == 1) {       /* rapid — cycle: 25 -> 50 -> 100 */
-        int cur = s_status.rapid_ov;
-        if (delta == 0)   return write_rt(0x95);
-        if (delta < 0)    return write_rt(cur > 50 ? 0x96 : 0x97);   /* down */
-        return                    write_rt(cur < 50 ? 0x96 : 0x95);  /* up   */
-    }
-    if (channel == 2) {       /* spindle */
-        if (delta == 0)   return write_rt(0x99);
-        if (delta >= 10)  return write_rt(0x9A);
-        if (delta <= -10) return write_rt(0x9B);
-        return delta > 0 ? write_rt(0x9C) : write_rt(0x9D);
-    }
-    return ESP_ERR_INVALID_ARG;
+
+    /* Write first, predict second: if the link is down there is no pending
+     * report to walk the number back, so showing a change that never
+     * reached the controller would leave the UI lying indefinitely. */
+    esp_err_t err = write_rt(byte);
+    if (err != ESP_OK) return err;
+
+    status_lock();
+    *slot = predicted;
+    status_unlock();
+    notify();
+    return ESP_OK;
 }
 
 esp_err_t fluidnc_spindle_on(int rpm)

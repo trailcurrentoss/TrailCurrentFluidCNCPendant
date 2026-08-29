@@ -569,9 +569,17 @@ void app_state_paint_initial_state(void)
     set_var_rapid_ov_pct(get_var_rapid_ov_pct());
     set_var_spindle_ov_pct(get_var_spindle_ov_pct());
 
+    /* Jog page FEED readout — the .eez-project bakes in "FEED 1200 mm/min"
+     * as design-time text and nothing else writes it, so push a real 0
+     * (planner idle) over it before the first status report lands. */
+    jog_feed_label_update(0);
+
     /* MDI console (Run page) — keymap + textarea wiring lives with the rest
      * of the MDI code in actions.c. */
     mdi_console_init();
+
+    /* Override +/- buttons — press-and-hold repeat, wired in actions.c. */
+    override_buttons_init();
 
     /* Settings → System rows — push the vars.c defaults over the authored
      * placeholder text so the page never shows stale .eez-project copy. */
@@ -751,6 +759,10 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
     set_var_feed_ov_pct(st->feed_ov);
     set_var_rapid_ov_pct(st->rapid_ov);
     set_var_spindle_ov_pct(st->spindle_ov);
+
+    /* Jog page FEED readout — live rate, override already applied by the
+     * controller. Reads 0 whenever the planner is idle. */
+    jog_feed_label_update(st->feed);
 
     /* Spindle + coolant — Spindle page + Dashboard tile. */
     set_var_spindle_rpm(st->spindle_rpm);

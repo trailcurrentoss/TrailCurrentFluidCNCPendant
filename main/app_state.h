@@ -42,6 +42,7 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "esp_err.h"
 
 #ifdef __cplusplus
@@ -98,6 +99,19 @@ void app_state_paint_initial_state(void);
  * keyboard→textarea wiring). Implemented in actions.c with the rest of the
  * MDI code; called from app_state_paint_initial_state() after ui_init(). */
 void mdi_console_init(void);
+
+/* One-time setup for the Dashboard's override +/- buttons: adds a
+ * LV_EVENT_LONG_PRESSED_REPEAT handler alongside the LV_EVENT_CLICKED one
+ * EEZ Studio generates, so holding a button ramps instead of requiring one
+ * tap per 10 %. Implemented in actions.c next to action_adjust_override;
+ * called from app_state_paint_initial_state() after ui_init(). Must not
+ * live in main/ui/ — that gets overwritten on every EEZ Studio Build. */
+void override_buttons_init(void);
+
+/* Repaint the Jog page's FEED readout with the controller's live feedrate
+ * (mm/min; 0 when idle). Not an EEZ-bound variable, so it has no generated
+ * setter — implemented in vars.c. Safe from any task. */
+void jog_feed_label_update(int32_t mm_min);
 
 /* Toggle the CHECKED state across every dynamically-created file row so
  * the visual "selected row" follows the user's tap. Called from

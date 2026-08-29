@@ -24,6 +24,10 @@
 
 static const char *TAG = "fluidnc";
 
+/* Stand-in for the "programmed" F word of the simulated job. The reported
+ * live feed is this scaled by the feed override. */
+#define MOCK_PROGRAMMED_FEED  1200
+
 static fluidnc_status_t      s_status;
 static fluidnc_status_cb_t   s_cb        = NULL;
 static void                 *s_user_ctx  = NULL;
@@ -79,6 +83,15 @@ static void protocol_task(void *arg)
             }
             s_status.job_line = (int)(s_status.job_progress_pct * s_status.job_total / 100.0f);
         }
+
+        /* Live feedrate, mirroring what a real controller reports: a
+         * nominal programmed rate already scaled by the feed override
+         * while the planner is executing, and 0 when it's idle. Lets the
+         * Jog page's FEED readout be exercised without a controller. */
+        s_status.feed = (s_status.state == FLUIDNC_STATE_RUN ||
+                         s_status.state == FLUIDNC_STATE_JOG)
+                            ? (MOCK_PROGRAMMED_FEED * s_status.feed_ov) / 100
+                            : 0;
         notify();
         vTaskDelay(pdMS_TO_TICKS(120));
     }

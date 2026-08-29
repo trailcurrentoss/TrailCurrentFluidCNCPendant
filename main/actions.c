@@ -158,6 +158,35 @@ void action_reset_override(lv_event_t *e)
     fluidnc_adjust_override(evt_user_data(e), 0);
 }
 
+/* One-time: give the feed and spindle override +/- buttons a press-and-hold
+ * ramp.
+ *
+ * EEZ Studio only generates an LV_EVENT_CLICKED handler, and CLICKED fires
+ * on RELEASE — so holding a button did nothing at all, and every 10 % step
+ * needed a discrete tap. Taking feed from 100 % to 50 % was five taps, each
+ * one waiting on its own controller round trip. LV_EVENT_LONG_PRESSED_REPEAT
+ * reuses the same handler and the same userData, so the repeat path and the
+ * tap path are identical; LVGL's default repeat period (~100 ms) gives a
+ * 10 %/100 ms ramp while held.
+ *
+ * Rapid is deliberately excluded. It's a 3-preset control (25/50/100), so a
+ * hold would slam it to an endpoint faster than the user could react, and
+ * there's no useful middle ground to ramp through. It stays tap-only. */
+void override_buttons_init(void)
+{
+    static const int ud[] = { 0, 1, 4, 5 };   /* feed -/+, spindle -/+ */
+    lv_obj_t *const btns[] = {
+        objects.dash_ov_dec_feed,    objects.dash_ov_inc_feed,
+        objects.dash_ov_dec_spindle, objects.dash_ov_inc_spindle,
+    };
+    for (size_t i = 0; i < sizeof(btns) / sizeof(*btns); i++) {
+        if (!btns[i]) continue;
+        lv_obj_add_event_cb(btns[i], action_adjust_override,
+                            LV_EVENT_LONG_PRESSED_REPEAT,
+                            (void *)(intptr_t)ud[i]);
+    }
+}
+
 /* ---------- Jog ---------- */
 void action_set_wcs(lv_event_t *e)
 {

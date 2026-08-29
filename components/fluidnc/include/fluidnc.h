@@ -51,6 +51,11 @@ typedef struct {
     int             rapid_ov;    /* % */
     int             spindle_ov;  /* % */
     bool            spindle_on;
+    /* Live path feedrate from the status report's FS:/F: field, in the
+     * controller's current unit system (mm/min under G21). Reads 0 when
+     * the machine is idle — grbl only reports a non-zero feed while the
+     * planner is executing motion. */
+    int             feed;
     int             spindle_rpm;
     int             spindle_target;
     int             spindle_load;

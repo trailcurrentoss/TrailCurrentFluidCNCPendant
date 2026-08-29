@@ -444,6 +444,29 @@ OV_PCT_VAR(rapid_ov_pct,   dash_ov_val_rapid,   dash_ov_bar_rapid)
 OV_PCT_VAR(spindle_ov_pct, dash_ov_val_spindle, dash_ov_bar_spindle)
 #undef OV_PCT_VAR
 
+/* --- Jog page FEED readout ---------------------------------------------- *
+ * `jog_step_feed` is a plain LVGL label, not an EEZ-bound variable, so EEZ
+ * Studio generates no setter for it and nothing used to write it — it sat
+ * showing the .eez-project's design-time "FEED 1200 mm/min" for the life of
+ * the device.
+ *
+ * It shows the LIVE feedrate reported by the controller, which is the
+ * number that matters while you're nudging the feed override: grbl reports
+ * the rate with the override already applied, so this moves as you tap.
+ * The programmed rate is deliberately NOT tracked as a second value —
+ * returning the override to 100 % is how you read it back. Shows 0
+ * whenever the planner is idle, which is what the controller reports. */
+void jog_feed_label_update(int32_t mm_min)
+{
+    bsp_display_lock(0);
+    if (objects.jog_step_feed) {
+        char buf[28];
+        snprintf(buf, sizeof(buf), "FEED %d mm/min", (int)mm_min);
+        lv_label_set_text(objects.jog_step_feed, buf);
+    }
+    bsp_display_unlock();
+}
+
 
 /* --- Job ---------------------------------------------------------------- *
  * Run header (run_hdr_*) and Dashboard job card (dash_job_*) both show the
