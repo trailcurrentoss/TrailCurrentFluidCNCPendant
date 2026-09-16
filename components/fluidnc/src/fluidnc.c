@@ -150,12 +150,39 @@ static size_t  s_partial_len = 0;
 static SemaphoreHandle_t s_partial_mtx = NULL;
 
 /* File listing — collected between "$SD/List" send and the following
- * "ok". The pendant only displays a few rows so this is small. */
-#define FILES_MAX 24
-static fluidnc_file_t s_files[FILES_MAX];
-static size_t         s_files_n = 0;
+ * "ok". Grows on demand: the pendant must not impose a cap the controller
+ * doesn't, so a card holding 200 jobs lists all 200. Capacity is retained
+ * across refreshes; only the count resets. */
+static fluidnc_file_t   *s_files     = NULL;
+static size_t            s_files_n   = 0;
+static size_t            s_files_cap = 0;
 static SemaphoreHandle_t s_files_mtx = NULL;
-static volatile bool  s_collecting_files = false;
+static volatile bool     s_collecting_files = false;
+
+/* The dispatcher appends entries from its own task while the UI reads them
+ * from the LVGL task. That was already true, but a growable array can move
+ * under realloc(), so every touch of s_files now holds the mutex. */
+static inline void files_lock(void)
+{
+    if (s_files_mtx) xSemaphoreTake(s_files_mtx, portMAX_DELAY);
+}
+static inline void files_unlock(void)
+{
+    if (s_files_mtx) xSemaphoreGive(s_files_mtx);
+}
+
+/* Ensure room for `need` entries. Caller must hold the files mutex. */
+static bool files_reserve(size_t need)
+{
+    if (need <= s_files_cap) return true;
+    size_t cap = s_files_cap ? s_files_cap * 2 : 16;
+    while (cap < need) cap *= 2;
+    fluidnc_file_t *p = realloc(s_files, cap * sizeof(*p));
+    if (!p) return false;
+    s_files     = p;
+    s_files_cap = cap;
+    return true;
+}
 
 /* SD card capacity, populated from `[MSG: ... Total: X Used: Y]` lines
  * that FluidNC emits during `$SD/List`. Stays 0 until the controller has
@@ -413,21 +440,25 @@ static void handle_line(const char *line)
         break;
     }
     case FLUIDNC_RX_FILE_ENTRY: {
-        if (s_collecting_files && s_files_n < FILES_MAX) {
-            fluidnc_file_t *f = &s_files[s_files_n];
-            memset(f, 0, sizeof(*f));
-            if (fluidnc_proto_parse_file_entry(line, f->name, sizeof(f->name),
-                                               &f->size_bytes)) {
-                /* Only surface runnable g-code — the SD card also carries
-                 * config.yaml, index.html.gz, logs etc., none of which the
-                 * user should be able to select as a job. */
-                const char *dot = strrchr(f->name, '.');
-                if (dot && strcasecmp(dot, ".nc") == 0) {
-                    f->date[0] = '\0';  /* FluidNC doesn't report mtime */
-                    s_files_n++;
-                }
-            }
+        if (!s_collecting_files) break;
+        fluidnc_file_t f;
+        memset(&f, 0, sizeof(f));
+        if (!fluidnc_proto_parse_file_entry(line, f.name, sizeof(f.name),
+                                            &f.size_bytes)) break;
+        /* Only surface runnable g-code — the SD card also carries
+         * config.yaml, index.html.gz, logs etc., none of which the
+         * user should be able to select as a job. */
+        const char *dot = strrchr(f.name, '.');
+        if (!dot || strcasecmp(dot, ".nc") != 0) break;
+        f.date[0] = '\0';  /* FluidNC doesn't report mtime */
+        files_lock();
+        if (files_reserve(s_files_n + 1)) {
+            s_files[s_files_n++] = f;
+        } else {
+            ESP_LOGE(TAG, "file list: out of memory at %u entries — "
+                          "listing truncated", (unsigned)s_files_n);
         }
+        files_unlock();
         break;
     }
     case FLUIDNC_RX_DIR_ENTRY:
@@ -1196,9 +1227,9 @@ esp_err_t fluidnc_send_line(const char *line)
 
 esp_err_t fluidnc_refresh_files(void)
 {
-    xSemaphoreTake(s_files_mtx, portMAX_DELAY);
-    s_files_n = 0;
-    xSemaphoreGive(s_files_mtx);
+    files_lock();
+    s_files_n = 0;   /* keep the allocation; only the count resets */
+    files_unlock();
     s_collecting_files = true;
     /* Query the FluidNC controller's SD card — this is the operator's
      * primary file store. The on-board SPIFFS ($LocalFS/List) is for
@@ -1214,12 +1245,31 @@ size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
      * the controller has cached (always zero at this point). Skip the lock
      * dance if the dispatcher hasn't created its mutexes yet. */
     if (!s_files_mtx) return 0;
-    xSemaphoreTake(s_files_mtx, portMAX_DELAY);
+    files_lock();
     size_t n = s_files_n;
     if (n > out_cap) n = out_cap;
-    memcpy(out, s_files, n * sizeof(s_files[0]));
-    xSemaphoreGive(s_files_mtx);
+    if (n) memcpy(out, s_files, n * sizeof(s_files[0]));
+    files_unlock();
     return n;
+}
+
+size_t fluidnc_get_file_count(void)
+{
+    if (!s_files_mtx) return 0;
+    files_lock();
+    size_t n = s_files_n;
+    files_unlock();
+    return n;
+}
+
+bool fluidnc_get_file(size_t idx, fluidnc_file_t *out)
+{
+    if (!out || !s_files_mtx) return false;
+    files_lock();
+    bool ok = (idx < s_files_n);
+    if (ok) *out = s_files[idx];
+    files_unlock();
+    return ok;
 }
 
 bool fluidnc_get_storage_info(uint64_t *total_bytes, uint64_t *used_bytes)

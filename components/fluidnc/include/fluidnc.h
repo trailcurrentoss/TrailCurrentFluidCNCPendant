@@ -170,7 +170,21 @@ typedef struct {
 } fluidnc_file_t;
 
 esp_err_t fluidnc_refresh_files(void);
+
+/* Bulk copy into a caller-supplied array, truncating at out_cap. Prefer
+ * fluidnc_get_file() below for UI code — the listing is unbounded, so any
+ * fixed-size array here silently drops files. */
 size_t    fluidnc_get_files(fluidnc_file_t *out, size_t out_cap);
+
+/* Number of g-code files the controller reported on the last $SD/List.
+ * Unbounded — the pendant caches as many as the controller sends. */
+size_t    fluidnc_get_file_count(void);
+
+/* Copy one entry by index into *out. Returns false if idx is past the end
+ * (or the dispatcher isn't up yet), leaving *out untouched. This is the
+ * safe accessor for UI code: it copies, so the result stays valid for the
+ * caller's lifetime rather than pointing into the dispatcher's cache. */
+bool      fluidnc_get_file(size_t idx, fluidnc_file_t *out);
 
 /* SD card capacity reported by the controller. Either pointer may be NULL.
  * Values are 0 until the controller has reported them — wait until after a

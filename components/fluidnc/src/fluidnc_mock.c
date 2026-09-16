@@ -373,5 +373,15 @@ size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
     memcpy(out, s_files, n * sizeof(s_files[0]));
     return n;
 }
+size_t fluidnc_get_file_count(void)
+{
+    return sizeof(s_files) / sizeof(s_files[0]);
+}
+bool fluidnc_get_file(size_t idx, fluidnc_file_t *out)
+{
+    if (!out || idx >= sizeof(s_files) / sizeof(s_files[0])) return false;
+    *out = s_files[idx];
+    return true;
+}
 
 #endif /* CONFIG_FLUIDNC_USE_MOCK */

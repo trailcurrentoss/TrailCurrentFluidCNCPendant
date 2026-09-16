@@ -253,22 +253,24 @@ void action_job_start(lv_event_t *e)   { (void)e; fluidnc_job_start(NULL); }
 void action_job_stop(lv_event_t *e)    { (void)e; fluidnc_job_stop();      }
 
 /* ---------- Files ---------- */
-/* File rows on PageFiles are now created dynamically in app_state.c — see
- * MAX_FILES + create_file_row_locked(). action_file_select reads the
- * controller's cached listing and updates the right-hand SELECTED card;
- * the visual "highlight one row" swap is delegated to app_state since it
- * owns the row pointer array. */
-#define ACTIONS_MAX_FILES 8
-
+/* File rows on PageFiles are created dynamically in app_state.c — see
+ * create_file_row_locked(). There is no fixed row count: the listing is
+ * whatever the controller reports and files_list_card scrolls to fit.
+ * action_file_select reads the controller's cached listing and updates the
+ * right-hand SELECTED card; the visual "highlight one row" swap is
+ * delegated to app_state since it owns the row array. */
 void action_file_select(lv_event_t *e)
 {
     int ud = evt_user_data(e);
     app_state_files_select_visual(ud);
 
-    fluidnc_file_t files[ACTIONS_MAX_FILES];
-    size_t n = fluidnc_get_files(files, sizeof(files) / sizeof(*files));
-    if (ud < 0 || (size_t)ud >= n) {
-        ESP_LOGW(TAG, "file_select idx=%d out of range (n=%u)", ud, (unsigned)n);
+    /* fluidnc_get_file() copies into our frame, so there's no fixed-size
+     * array here to cap the listing and nothing pointing into the
+     * dispatcher's cache after it returns. */
+    fluidnc_file_t f;
+    if (ud < 0 || !fluidnc_get_file((size_t)ud, &f)) {
+        ESP_LOGW(TAG, "file_select idx=%d out of range (n=%u)", ud,
+                 (unsigned)fluidnc_get_file_count());
         return;
     }
     s_selected_file_idx = ud;
@@ -279,16 +281,16 @@ void action_file_select(lv_event_t *e)
      * the protocol doesn't provide for free. The size row (files_det_bd_*)
      * remains: size comes straight from the $SD/List reply. */
     if (objects.files_sel_name) {
-        lv_label_set_text(objects.files_sel_name, files[ud].name);
+        lv_label_set_text(objects.files_sel_name, f.name);
     }
     if (objects.files_det_bd_val) {
         char buf[16];
-        uint32_t kb = (files[ud].size_bytes + 512) / 1024;
+        uint32_t kb = (f.size_bytes + 512) / 1024;
         if (kb >= 1024) snprintf(buf, sizeof(buf), "%.1f MB", kb / 1024.0f);
         else            snprintf(buf, sizeof(buf), "%u KB", (unsigned)kb);
         lv_label_set_text(objects.files_det_bd_val, buf);
     }
-    ESP_LOGI(TAG, "file selected idx=%d name=%s", ud, files[ud].name);
+    ESP_LOGI(TAG, "file selected idx=%d name=%s", ud, f.name);
 }
 void action_file_load_run(lv_event_t *e)
 {
@@ -296,22 +298,18 @@ void action_file_load_run(lv_event_t *e)
     /* Pass the selected file name; backend resolves SD path. NULL means
      * "resume the currently loaded job" — fine when nothing is selected.
      *
-     * `files` below is a block-scoped stack array, so a pointer into it
-     * dangles the moment the block exits. fluidnc_job_start's own frame
-     * (which carries a 96-byte command buffer) then reuses that region and
-     * the name is read back truncated or shredded — the controller saw
-     * "$SD/Run=/sd/TextBoxCutV2" (extension lopped off) and
-     * "$SD/Run=/sd/|\xef\xf3OBoxCS", and answered error:66 every time.
-     * Copy the name somewhere that outlives the lookup. */
-    char name_buf[64];
+     * `f` is declared at function scope on purpose. It used to be a
+     * block-scoped array with `name` pointing into it, so the pointer
+     * dangled the moment the block closed and fluidnc_job_start's own frame
+     * (which carries a 96-byte command buffer) reused that stack region.
+     * The controller received "$SD/Run=/sd/TextBoxCutV2" (extension lopped
+     * off) and "$SD/Run=/sd/|\xef\xf3OBoxCS", and answered error:66 every
+     * time. Keep the storage alive for the whole call. */
+    fluidnc_file_t f;
     const char *name = NULL;
-    if (s_selected_file_idx >= 0) {
-        fluidnc_file_t files[ACTIONS_MAX_FILES];
-        size_t n = fluidnc_get_files(files, sizeof(files) / sizeof(*files));
-        if ((size_t)s_selected_file_idx < n) {
-            strlcpy(name_buf, files[s_selected_file_idx].name, sizeof(name_buf));
-            name = name_buf;
-        }
+    if (s_selected_file_idx >= 0 &&
+        fluidnc_get_file((size_t)s_selected_file_idx, &f)) {
+        name = f.name;
     }
     ESP_LOGI(TAG, "load+run idx=%d name=%s", s_selected_file_idx,
              name ? name : "(resume)");

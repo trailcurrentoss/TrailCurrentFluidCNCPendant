@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_log.h"
@@ -319,8 +320,9 @@ static const char *machine_state_text(fluidnc_state_t s)
  *
  * Rows on PageFiles aren't authored in EEZ Studio — they're built here in C,
  * one per file the controller reports. This keeps the .eez-project free of
- * placeholder widgets that never carry real data, and means MAX_FILES (and
- * scrolling, eventually) can change without an .eez-project edit.
+ * placeholder widgets that never carry real data, and means the row count is
+ * bounded only by the listing itself: files_list_card scrolls vertically, so
+ * there is no fixed maximum anywhere in the path.
  *
  * Geometry, styles, and per-label font overrides match what the EEZ Studio
  * source used to ship. Styles are applied through the add_style_*() helpers
@@ -331,33 +333,81 @@ static const char *machine_state_text(fluidnc_state_t s)
  * parent populated (i.e. once ui_init has run). Rows persist for the
  * pendant's lifetime; refresh just shows/hides them and updates the label
  * text per the current fluidnc_get_files() result. */
-#define MAX_FILES 8
+/* No fixed row count — the card scrolls, so the list holds exactly as many
+ * files as the controller reports. Row widgets are allocated on demand and
+ * kept for the pendant's lifetime (a refresh reuses them; a longer listing
+ * grows the array). */
+typedef struct {
+    lv_obj_t *row;
+    lv_obj_t *name;
+    lv_obj_t *size;
+    lv_obj_t *date;
+} file_row_t;
 
-static lv_obj_t *s_file_row[MAX_FILES];
-static lv_obj_t *s_file_row_name[MAX_FILES];
-static lv_obj_t *s_file_row_size[MAX_FILES];
-static lv_obj_t *s_file_row_date[MAX_FILES];
+static file_row_t *s_file_rows   = NULL;
+static size_t      s_file_rows_n = 0;   /* widgets allocated, not files shown */
+
+/* Grow the row array to hold at least `need` rows. New slots are zeroed so
+ * create_file_row_locked() can tell "not built yet" from "already built". */
+static bool file_rows_reserve(size_t need)
+{
+    if (need <= s_file_rows_n) return true;
+    file_row_t *p = realloc(s_file_rows, need * sizeof(*p));
+    if (!p) return false;
+    memset(p + s_file_rows_n, 0, (need - s_file_rows_n) * sizeof(*p));
+    s_file_rows   = p;
+    s_file_rows_n = need;
+    return true;
+}
 
 /* Build a single file row. Must be called while the LVGL lock is held
  * (refresh_files_display_locked is called from app_state_refresh_files_display
  * which takes the lock around it). */
-static void create_file_row_locked(int idx)
+static void create_file_row_locked(size_t idx)
 {
-    if (idx < 0 || idx >= MAX_FILES || s_file_row[idx]) return;
+    if (idx >= s_file_rows_n || s_file_rows[idx].row) return;
     if (!objects.files_list_card) return;
+
+    /* One-time setup of the card as a vertical scroller. EEZ Studio already
+     * leaves LV_OBJ_FLAG_SCROLLABLE set on files_list_card (it clears the
+     * elastic/momentum/chain flags but not SCROLLABLE), so all that's needed
+     * is to pin the header widgets — they're children of the card and would
+     * otherwise scroll away with the rows — and lock scrolling to one axis. */
+    static bool s_card_scroll_ready = false;
+    if (!s_card_scroll_ready) {
+        lv_obj_set_scroll_dir(objects.files_list_card, LV_DIR_VER);
+        /* A drag only scrolls an ancestor if the press landed on something
+         * LVGL hit-tested, and lv_obj_hit_test() rejects any object without
+         * LV_OBJ_FLAG_CLICKABLE — which EEZ Studio clears on this card.
+         * Rows are buttons so dragging one chains up here fine, but drags
+         * starting in the gaps between rows (or below the last row) would
+         * hit nothing and the list would feel stuck. The card has no event
+         * handler, so making it clickable only affects hit-testing. */
+        lv_obj_add_flag(objects.files_list_card, LV_OBJ_FLAG_CLICKABLE);
+        if (objects.files_caption) {
+            lv_obj_add_flag(objects.files_caption, LV_OBJ_FLAG_FLOATING);
+        }
+        if (objects.files_count) {
+            lv_obj_add_flag(objects.files_count, LV_OBJ_FLAG_FLOATING);
+        }
+        if (objects.files_spinner) {
+            lv_obj_add_flag(objects.files_spinner, LV_OBJ_FLAG_FLOATING);
+        }
+        s_card_scroll_ready = true;
+    }
 
     /* Row geometry mirrors the .eez-project: rows are 678×44, first at y=28,
      * 50-px vertical pitch. Inset 6 px from card edge to leave room for the
      * card's own padding + the CHECKED-state outline. */
     lv_obj_t *row = lv_btn_create(objects.files_list_card);
     add_style_btn_file_row(row);
-    lv_obj_set_pos(row, 6, 28 + idx * 50);
+    lv_obj_set_pos(row, 6, (lv_coord_t)(28 + idx * 50));
     lv_obj_set_size(row, 678, 44);
     /* Tap routes through the same EEZ Studio FileSelect action that the
      * static rows used; userData carries the row index. */
     lv_obj_add_event_cb(row, action_file_select, LV_EVENT_CLICKED,
                         (void *)(intptr_t)idx);
-    s_file_row[idx] = row;
+    s_file_rows[idx].row = row;
 
     /* File-type icon (FA "file" glyph U+F15C) — same position the .eez-project
      * placed it. */
@@ -375,7 +425,7 @@ static void create_file_row_locked(int idx)
     lv_obj_set_style_text_font(name, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_label_set_text(name, "");
-    s_file_row_name[idx] = name;
+    s_file_rows[idx].name = name;
 
     /* Size — mono-mini already configures the mono_13 font via its style. */
     lv_obj_t *size = lv_label_create(row);
@@ -383,7 +433,7 @@ static void create_file_row_locked(int idx)
     lv_obj_set_pos(size, 508, 15);
     lv_obj_set_size(size, 80, 14);
     lv_label_set_text(size, "");
-    s_file_row_size[idx] = size;
+    s_file_rows[idx].size = size;
 
     /* Date — Montserrat 12 (smaller than name on purpose, like EEZ shipped). */
     lv_obj_t *date = lv_label_create(row);
@@ -393,7 +443,7 @@ static void create_file_row_locked(int idx)
     lv_obj_set_style_text_font(date, &lv_font_montserrat_12,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_label_set_text(date, "");
-    s_file_row_date[idx] = date;
+    s_file_rows[idx].date = date;
 
     /* Hidden until refresh decides whether to show it. */
     lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
@@ -403,20 +453,19 @@ static void create_file_row_locked(int idx)
  * "selected row" follows the user's tap. Called by action_file_select. */
 void app_state_files_select_visual(int idx)
 {
-    for (int i = 0; i < MAX_FILES; i++) {
-        if (!s_file_row[i]) continue;
-        if (i == idx) lv_obj_add_state(s_file_row[i],   LV_STATE_CHECKED);
-        else          lv_obj_clear_state(s_file_row[i], LV_STATE_CHECKED);
+    for (size_t i = 0; i < s_file_rows_n; i++) {
+        if (!s_file_rows[i].row) continue;
+        if (i == (size_t)idx) lv_obj_add_state(s_file_rows[i].row,   LV_STATE_CHECKED);
+        else                  lv_obj_clear_state(s_file_rows[i].row, LV_STATE_CHECKED);
     }
 }
 
-/* Show up to MAX_FILES rows populated from the controller's cached file
- * listing; hide the rest. Creates rows lazily on first call so the panel
- * never holds widgets it doesn't need. */
+/* Paint one row per file the controller reported — however many that is —
+ * and hide any rows left over from a longer previous listing. Rows are
+ * created lazily and the card scrolls, so nothing here caps the count. */
 static void refresh_files_display_locked(void)
 {
-    fluidnc_file_t files[MAX_FILES];
-    size_t n = fluidnc_get_files(files, sizeof(files) / sizeof(*files));
+    size_t n = fluidnc_get_file_count();
 
     /* The listing has arrived (or we're painting cached state) — the
      * loading spinner's job is done either way. */
@@ -424,28 +473,52 @@ static void refresh_files_display_locked(void)
         lv_obj_add_flag(objects.files_spinner, LV_OBJ_FLAG_HIDDEN);
     }
 
-    for (size_t i = 0; i < MAX_FILES; i++) {
-        if (i < n) {
-            if (!s_file_row[i]) create_file_row_locked((int)i);
-            if (s_file_row_name[i]) lv_label_set_text(s_file_row_name[i], files[i].name);
-            if (s_file_row_size[i]) {
+    /* Grow the row array to fit. On allocation failure, paint what we can
+     * rather than dropping the whole list — and say so, because a silently
+     * short list is exactly the failure that hides a file from the user. */
+    size_t shown = n;
+    if (!file_rows_reserve(n)) {
+        shown = s_file_rows_n;
+        ESP_LOGE(TAG, "file rows: out of memory — showing %u of %u files",
+                 (unsigned)shown, (unsigned)n);
+    }
+
+    for (size_t i = 0; i < s_file_rows_n; i++) {
+        fluidnc_file_t f;
+        if (i < shown && fluidnc_get_file(i, &f)) {
+            if (!s_file_rows[i].row) create_file_row_locked(i);
+            if (s_file_rows[i].name) lv_label_set_text(s_file_rows[i].name, f.name);
+            if (s_file_rows[i].size) {
                 char buf[16];
-                uint32_t kb = (files[i].size_bytes + 512) / 1024;
+                uint32_t kb = (f.size_bytes + 512) / 1024;
                 if (kb >= 1024) snprintf(buf, sizeof(buf), "%.1f MB", kb / 1024.0f);
                 else            snprintf(buf, sizeof(buf), "%u KB", (unsigned)kb);
-                lv_label_set_text(s_file_row_size[i], buf);
+                lv_label_set_text(s_file_rows[i].size, buf);
             }
-            if (s_file_row_date[i]) {
-                lv_label_set_text(s_file_row_date[i],
-                                  files[i].date[0] ? files[i].date : "");
+            if (s_file_rows[i].date) {
+                lv_label_set_text(s_file_rows[i].date, f.date[0] ? f.date : "");
             }
-            if (s_file_row[i]) lv_obj_clear_flag(s_file_row[i], LV_OBJ_FLAG_HIDDEN);
-        } else if (s_file_row[i]) {
-            lv_obj_add_flag(s_file_row[i], LV_OBJ_FLAG_HIDDEN);
+            if (s_file_rows[i].row) lv_obj_clear_flag(s_file_rows[i].row, LV_OBJ_FLAG_HIDDEN);
+        } else if (s_file_rows[i].row) {
+            lv_obj_add_flag(s_file_rows[i].row, LV_OBJ_FLAG_HIDDEN);
         }
     }
+
+    /* Scroll back to the top when the listing itself changes, so a fresh
+     * $SD/List doesn't leave the view stranded partway down a now-shorter
+     * list. Deliberately NOT on every repaint: files_seq also bumps on the
+     * storage-capacity lines, and yanking the view to the top while the
+     * user is scrolling would be maddening. */
+    static size_t s_last_painted_n = (size_t)-1;
+    if (objects.files_list_card && n != s_last_painted_n) {
+        lv_obj_scroll_to_y(objects.files_list_card, 0, LV_ANIM_OFF);
+    }
+    s_last_painted_n = n;
+
     if (objects.files_count) {
         char buf[24];
+        /* Report the controller's true total, not the number of rows that
+         * happened to fit — a truncated count is what would hide a file. */
         snprintf(buf, sizeof(buf), "%u file%s", (unsigned)n, n == 1 ? "" : "s");
         lv_label_set_text(objects.files_count, buf);
     }
@@ -514,8 +587,8 @@ void app_state_files_show_loading(void)
      * doesn't see stale filenames during the fetch. The next
      * refresh_files_display_locked() pass re-shows the rows that are
      * still in the freshly-arrived list. */
-    for (size_t i = 0; i < MAX_FILES; i++) {
-        if (s_file_row[i]) lv_obj_add_flag(s_file_row[i], LV_OBJ_FLAG_HIDDEN);
+    for (size_t i = 0; i < s_file_rows_n; i++) {
+        if (s_file_rows[i].row) lv_obj_add_flag(s_file_rows[i].row, LV_OBJ_FLAG_HIDDEN);
     }
     bsp_display_unlock();
 }
