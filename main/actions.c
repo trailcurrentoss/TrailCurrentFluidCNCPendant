@@ -294,13 +294,27 @@ void action_file_load_run(lv_event_t *e)
 {
     (void)e;
     /* Pass the selected file name; backend resolves SD path. NULL means
-     * "resume the currently loaded job" — fine when nothing is selected. */
+     * "resume the currently loaded job" — fine when nothing is selected.
+     *
+     * `files` below is a block-scoped stack array, so a pointer into it
+     * dangles the moment the block exits. fluidnc_job_start's own frame
+     * (which carries a 96-byte command buffer) then reuses that region and
+     * the name is read back truncated or shredded — the controller saw
+     * "$SD/Run=/sd/TextBoxCutV2" (extension lopped off) and
+     * "$SD/Run=/sd/|\xef\xf3OBoxCS", and answered error:66 every time.
+     * Copy the name somewhere that outlives the lookup. */
+    char name_buf[64];
     const char *name = NULL;
     if (s_selected_file_idx >= 0) {
         fluidnc_file_t files[ACTIONS_MAX_FILES];
         size_t n = fluidnc_get_files(files, sizeof(files) / sizeof(*files));
-        if ((size_t)s_selected_file_idx < n) name = files[s_selected_file_idx].name;
+        if ((size_t)s_selected_file_idx < n) {
+            strlcpy(name_buf, files[s_selected_file_idx].name, sizeof(name_buf));
+            name = name_buf;
+        }
     }
+    ESP_LOGI(TAG, "load+run idx=%d name=%s", s_selected_file_idx,
+             name ? name : "(resume)");
     fluidnc_job_start(name);
 }
 void action_file_refresh(lv_event_t *e)
