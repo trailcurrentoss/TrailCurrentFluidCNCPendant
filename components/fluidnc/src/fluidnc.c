@@ -46,7 +46,23 @@
 static const char *TAG = "fluidnc";
 
 #define FLUIDNC_LINE_MAX        256
-#define RX_QUEUE_DEPTH  16
+/* Depth in whole lines. `$SD/List` is the one reply that arrives as a long
+ * unbroken burst: the transport hands us a 512-byte recv() chunk holding
+ * ~15 file entries ("[FILE: name.nc|SIZE:188416]" is ~34 bytes), and the
+ * producer drains that chunk in one tight loop without yielding. At the
+ * old depth of 16 a card with more than ~15 jobs overran the queue inside
+ * a single chunk and the surplus lines — the tail of the listing, which is
+ * where FAT puts newly-written files — were thrown away, so freshly
+ * uploaded jobs never appeared on the Files page. Depth alone can't be the
+ * guarantee (the parse task stalls on the LVGL lock whenever a status
+ * report lands mid-listing), so the enqueue below also blocks rather than
+ * dropping; this just keeps it from having to. */
+#define RX_QUEUE_DEPTH  32
+/* How long the transport rx task will wait for room in the queue before it
+ * gives up on a line. Reaching this means the parse task has been wedged
+ * for a quarter second, which is a real fault worth logging — normal
+ * back-pressure clears in microseconds. */
+#define RX_ENQUEUE_TIMEOUT_MS  250
 #define POLL_PERIOD_MS  250
 /* If no RX activity for this long while we're polling `?` at 4 Hz, the
  * link is half-broken (TCP open, controller stuck) — tear it down so the
@@ -141,6 +157,10 @@ static volatile bool         s_run_tasks = false;
  * line (NUL-terminated) here for the parser task. */
 typedef struct { char buf[FLUIDNC_LINE_MAX]; } rx_line_t;
 static QueueHandle_t s_rx_q = NULL;
+/* Lines the rx feed had to abandon because the parse task never drained.
+ * Should stay 0 forever; a non-zero value means the pendant is showing the
+ * user an incomplete view of the controller's state. */
+static volatile uint32_t s_rx_dropped = 0;
 
 /* Inbound chunk reassembly buffer — bytes accumulate here until '\n' is
  * seen, then a rx_line_t is pushed. Owned by the dispatcher (writes come
@@ -182,6 +202,23 @@ static bool files_reserve(size_t need)
     s_files     = p;
     s_files_cap = cap;
     return true;
+}
+
+/* Most recent `[MSG:ERR: ...]` text and when it landed. An ALARM that
+ * follows one closely is almost always caused by it, so the alarm banner
+ * quotes it instead of printing a bare code. */
+#define ERR_CONTEXT_WINDOW_US  3000000  /* 3 s */
+static char    s_last_err_msg[112] = "";
+static int64_t s_last_err_us       = 0;
+
+/* True while the cached ERR text is recent enough to explain an alarm —
+ * also what stops a second ERR in the same burst from overwriting the
+ * first, and what keeps a stale error from captioning an unrelated alarm
+ * minutes later. */
+static bool err_context_fresh(void)
+{
+    return s_last_err_us > 0 &&
+           (esp_timer_get_time() - s_last_err_us) < ERR_CONTEXT_WINDOW_US;
 }
 
 /* SD card capacity, populated from `[MSG: ... Total: X Used: Y]` lines
@@ -371,6 +408,14 @@ static void apply_status_report(const fluidnc_status_report_t *r)
 /* Dispatch a single classified line. */
 static void handle_line(const char *line)
 {
+    /* Echo the whole `$SD/List` reply verbatim. A file that exists on the
+     * card but never reaches the Files page is invisible to the user and
+     * to the "listing complete (N entries)" count alike — the only way to
+     * tell a controller that didn't report it from a pendant that dropped
+     * it is to see the raw lines. Bounded: fires only between the send and
+     * the closing `ok`. */
+    if (s_collecting_files) ESP_LOGI(TAG, "SD/List RX: %s", line);
+
     fluidnc_rx_kind_t kind = fluidnc_proto_classify(line);
     switch (kind) {
     case FLUIDNC_RX_STATUS: {
@@ -410,17 +455,42 @@ static void handle_line(const char *line)
         int code = fluidnc_proto_get_alarm_code(line);
         status_lock();
         s_status.state = FLUIDNC_STATE_ALARM;
-        snprintf(s_status.alarm_text, sizeof(s_status.alarm_text),
-                 "ALARM %d - see FluidNC docs", code);
+        /* FluidNC narrates a g-code fault before it raises the alarm:
+         *   [MSG:ERR: Bad GCode: (Begin operation: T1: 3.175mm (1/8) ...)]
+         *   [MSG:ERR: 2 (Bad GCode number format) in /sd/part.nc]
+         *   [MSG:INFO: ALARM: GCode Error]
+         *   ALARM:17
+         * Quoting the first of those tells the operator which LINE of their
+         * job is malformed. "ALARM 17 - see FluidNC docs" told them only
+         * that something, somewhere, went wrong — and the useful text had
+         * already scrolled past in a log they can't see from the pendant. */
+        if (err_context_fresh()) {
+            snprintf(s_status.alarm_text, sizeof(s_status.alarm_text),
+                     "ALARM %d - %s", code, s_last_err_msg);
+        } else {
+            snprintf(s_status.alarm_text, sizeof(s_status.alarm_text),
+                     "ALARM %d - see FluidNC docs", code);
+        }
         status_unlock();
         notify();
         ESP_LOGW(TAG, "ALARM:%d", code);
         break;
     }
     case FLUIDNC_RX_MSG: {
-        char msg[96];
+        char msg[sizeof(s_last_err_msg)];
         if (fluidnc_proto_get_msg(line, msg, sizeof(msg))) {
             ESP_LOGI(TAG, "MSG: %s", msg);
+            /* Keep the FIRST "ERR:" of a burst, not the last. FluidNC
+             * reports the offending source line first and the numeric
+             * reason second; the source line is what the operator can
+             * actually act on, and the reason line's tail is just a path
+             * they already know. */
+            if (strncmp(msg, "ERR:", 4) == 0 && !err_context_fresh()) {
+                const char *p = msg + 4;
+                while (*p == ' ') p++;
+                strlcpy(s_last_err_msg, p, sizeof(s_last_err_msg));
+                s_last_err_us = esp_timer_get_time();
+            }
         }
         /* Some FluidNC versions emit `[MSG:Total: X Used: Y]` (and
          * variants) as part of the `$SD/List` reply. Snap it up
@@ -443,13 +513,33 @@ static void handle_line(const char *line)
         if (!s_collecting_files) break;
         fluidnc_file_t f;
         memset(&f, 0, sizeof(f));
-        if (!fluidnc_proto_parse_file_entry(line, f.name, sizeof(f.name),
-                                            &f.size_bytes)) break;
+        /* Parse into a full-line buffer first, never straight into f.name.
+         * The extension test below has to see the WHOLE name: a name longer
+         * than f.name gets truncated on copy, and truncation lops off the
+         * ".nc" — so testing the truncated copy threw away exactly the
+         * files with the longest (most descriptive) CAM-generated names,
+         * while short ones listed fine. Test first, copy second. */
+        char full[FLUIDNC_LINE_MAX];
+        uint32_t size_bytes = 0;
+        if (!fluidnc_proto_parse_file_entry(line, full, sizeof(full),
+                                            &size_bytes)) break;
         /* Only surface runnable g-code — the SD card also carries
          * config.yaml, index.html.gz, logs etc., none of which the
          * user should be able to select as a job. */
-        const char *dot = strrchr(f.name, '.');
-        if (!dot || strcasecmp(dot, ".nc") != 0) break;
+        const char *dot = strrchr(full, '.');
+        if (!dot || strcasecmp(dot, ".nc") != 0) {
+            ESP_LOGD(TAG, "file listing: skipped \"%s\" (not .nc)", full);
+            break;
+        }
+        f.size_bytes = size_bytes;
+        /* A name too long to store is still shown, but it cannot be run —
+         * `$SD/Run=` would carry the truncated path and the controller
+         * would answer error:8. Say so loudly rather than letting the user
+         * discover it by tapping Run on a job that refuses to start. */
+        if (strlcpy(f.name, full, sizeof(f.name)) >= sizeof(f.name)) {
+            ESP_LOGW(TAG, "file name longer than %d chars, truncated and NOT "
+                          "runnable: %s", (int)sizeof(f.name) - 1, full);
+        }
         f.date[0] = '\0';  /* FluidNC doesn't report mtime */
         files_lock();
         if (files_reserve(s_files_n + 1)) {
@@ -607,8 +697,21 @@ void fluidnc_dispatcher_feed_rx(const char *data, size_t n)
                                   ? s_partial_len : sizeof(line.buf) - 1;
                 memcpy(line.buf, s_partial, copy);
                 line.buf[copy] = '\0';
-                /* Non-blocking; drop if queue is full. */
-                if (s_rx_q) xQueueSend(s_rx_q, &line, 0);
+                /* Block for room instead of dropping. This runs on the
+                 * transport's own rx task, so waiting here simply stops
+                 * draining the socket and lets TCP back-pressure the
+                 * controller — exactly the right response to a parse task
+                 * that has fallen behind. The previous non-blocking send
+                 * discarded the line instead, silently and with no counter,
+                 * which is how entries went missing from `$SD/List`. */
+                if (s_rx_q && xQueueSend(s_rx_q, &line,
+                                         pdMS_TO_TICKS(RX_ENQUEUE_TIMEOUT_MS)) != pdTRUE) {
+                    s_rx_dropped++;
+                    ESP_LOGW(TAG, "rx queue full for %d ms — dropped line "
+                                  "(%u total): %s",
+                             RX_ENQUEUE_TIMEOUT_MS, (unsigned)s_rx_dropped,
+                             line.buf);
+                }
             }
             s_partial_len = 0;
         } else if (s_partial_len + 1 < sizeof(s_partial)) {
@@ -1072,7 +1175,10 @@ esp_err_t fluidnc_mist (bool on)
 esp_err_t fluidnc_job_start(const char *file_name)
 {
     if (s_status.state == FLUIDNC_STATE_ALARM) return ESP_OK;
-    char buf[96];
+    /* Must hold "$SD/Run=/sd/" + a full-length name + newline + NUL. At the
+     * old fixed 96 a long CAM name overflowed the snprintf and the pendant
+     * sent a silently truncated path the controller couldn't open. */
+    char buf[FLUIDNC_NAME_MAX + 32];
     if (file_name && file_name[0]) {
         strlcpy(s_status.job_file, file_name, sizeof(s_status.job_file));
         /* Run from the SD card — matches `$SD/List` in fluidnc_refresh_files

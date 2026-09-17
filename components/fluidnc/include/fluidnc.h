@@ -26,6 +26,16 @@
 extern "C" {
 #endif
 
+/* Longest g-code file name the pendant carries end to end — listing entry,
+ * selected job, and the `$SD/Run=` it sends back. CAM post-processors bake
+ * the tool, diameter, and speeds into the name, so real jobs run long:
+ * "strut_plate_front-T2__6_35mm__1_4__SpeTool_O-flute_-_Makita_dial_1__
+ * 10k_rpm_-1.nc" is 81 characters. At the previous 64 these were truncated
+ * mid-name, which silently cut the ".nc" off and made the listing filter
+ * discard the file — it never reached the Files page at all. Every buffer
+ * in that chain uses this one constant so they cannot drift apart again. */
+#define FLUIDNC_NAME_MAX 128
+
 typedef enum {
     FLUIDNC_STATE_DISCONNECTED = 0,
     FLUIDNC_STATE_CONNECTING,
@@ -66,9 +76,11 @@ typedef struct {
      * [FluidNC v4.0.1 ...]") or the $I probe's [VER:...] reply. Empty
      * until the controller has identified itself. */
     char            fw_version[40];
-    char            alarm_text[96];
+    /* Holds "ALARM <n> - " plus a quoted controller ERR line; the g-code
+     * comment that trips a GCode Error is itself often 80+ characters. */
+    char            alarm_text[128];
     /* Current job */
-    char            job_file[64];
+    char            job_file[FLUIDNC_NAME_MAX];
     bool            job_running;
     float           job_progress_pct;
     int             job_line;
@@ -164,7 +176,7 @@ esp_err_t fluidnc_send_line(const char *line);
 
 /* --- SD file listing on the FluidNC controller. --- */
 typedef struct {
-    char     name[64];
+    char     name[FLUIDNC_NAME_MAX];
     uint32_t size_bytes;
     char     date[20];
 } fluidnc_file_t;

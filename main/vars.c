@@ -27,6 +27,7 @@
 
 #include "ui/vars.h"
 #include "ui/screens.h"
+#include "fluidnc.h"
 #include "lvgl.h"
 
 #include <stdbool.h>
@@ -51,7 +52,7 @@ static struct {
     char     mini_dro_x[16], mini_dro_y[16], mini_dro_z[16];
     char     hold_label[12];
 
-    char     alarm_text[96];
+    char     alarm_text[128];   /* matches fluidnc_status_t.alarm_text */
 
     char     work_dro_x[16],    work_dro_y[16],    work_dro_z[16];
     char     machine_dro_x[16], machine_dro_y[16], machine_dro_z[16];
@@ -59,7 +60,9 @@ static struct {
 
     int32_t  feed_ov_pct, rapid_ov_pct, spindle_ov_pct;
 
-    char     job_file[64];
+    /* Sized off the controller's own limit — a job name that survives the
+     * listing must survive being displayed too. */
+    char     job_file[FLUIDNC_NAME_MAX];
     int32_t  job_pct;
     char     job_elapsed[12], job_eta[12];
     int32_t  job_line, job_total;

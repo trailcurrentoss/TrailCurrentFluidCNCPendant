@@ -424,6 +424,11 @@ static void create_file_row_locked(size_t idx)
     lv_obj_set_size(name, 464, 14);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    /* Real CAM output runs to 80+ characters ("strut_plate_front-T2__6_35mm
+     * __1_4__SpeTool_O-flute_-_Makita_dial_1__10k_rpm_-1.nc"), which is far
+     * wider than the 464 px this label gets. Ellipsise rather than letting
+     * the text run under the size and date columns. */
+    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, "");
     s_file_rows[idx].name = name;
 
