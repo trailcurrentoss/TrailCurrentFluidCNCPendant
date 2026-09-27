@@ -46,10 +46,12 @@ static int s_jog_step_idx = 2;
 /* Probe type chosen via the probe_cyc_* selector. Default 0 = Z touch-off. */
 static int s_probe_type_idx = 0;
 
-/* Index into the controller's file listing the user most recently tapped.
- * -1 = no selection yet — action_file_load_run uses this to pass the right
- * file name to fluidnc_job_start. */
-static int s_selected_file_idx = -1;
+/* The file the user most recently tapped on the Files page, kept as a PATH
+ * relative to the card root ("jobs/part.nc"), not as an index. An index into
+ * the listing goes stale the moment the user opens a different folder or the
+ * listing is refreshed, and a stale index would run the wrong job. Empty
+ * string = nothing selected. */
+static char s_selected_file_path[FLUIDNC_PATH_MAX];
 
 static const char *TAG = "actions";
 
@@ -262,21 +264,31 @@ void action_job_stop(lv_event_t *e)    { (void)e; fluidnc_job_stop();      }
 void action_file_select(lv_event_t *e)
 {
     int ud = evt_user_data(e);
-    app_state_files_select_visual(ud);
 
-    /* fluidnc_get_file() copies into our frame, so there's no fixed-size
-     * array here to cap the listing and nothing pointing into the
-     * dispatcher's cache after it returns. */
+    /* Rows can be folders or the ".." entry, so app_state resolves the tap:
+     * a navigation tap has already switched folders and repainted by the time
+     * this returns, and only a file tap fills in `f`. */
     fluidnc_file_t f;
-    if (ud < 0 || !fluidnc_get_file((size_t)ud, &f)) {
-        ESP_LOGW(TAG, "file_select idx=%d out of range (n=%u)", ud,
-                 (unsigned)fluidnc_get_file_count());
+    app_files_tap_t tap = app_state_files_tap(ud, &f);
+    if (tap == APP_FILES_TAP_NAV) {
+        /* The rows under the cursor are different files now - drop the
+         * selection rather than leaving the SELECTED card pointing at a job
+         * the user can no longer see. */
+        s_selected_file_path[0] = '\0';
+        if (objects.files_sel_name)    lv_label_set_text(objects.files_sel_name, "-");
+        if (objects.files_det_bd_val)  lv_label_set_text(objects.files_det_bd_val, "-");
         return;
     }
-    s_selected_file_idx = ud;
+    if (tap == APP_FILES_TAP_NONE) {
+        ESP_LOGW(TAG, "file_select idx=%d resolved to nothing", ud);
+        return;
+    }
+
+    app_state_files_select_visual(ud);
+    strlcpy(s_selected_file_path, f.path, sizeof(s_selected_file_path));
 
     /* Update the SELECTED card on the right side of the Files page. The
-     * runtime/lines/bounds rows were removed 2026-08-01 — populating them
+     * runtime/lines/bounds rows were removed 2026-08-01 - populating them
      * would require fetching the file's contents from the controller, which
      * the protocol doesn't provide for free. The size row (files_det_bd_*)
      * remains: size comes straight from the $SD/List reply. */
@@ -290,30 +302,27 @@ void action_file_select(lv_event_t *e)
         else            snprintf(buf, sizeof(buf), "%u KB", (unsigned)kb);
         lv_label_set_text(objects.files_det_bd_val, buf);
     }
-    ESP_LOGI(TAG, "file selected idx=%d name=%s", ud, f.name);
+    ESP_LOGI(TAG, "file selected path=%s", f.path);
 }
 void action_file_load_run(lv_event_t *e)
 {
     (void)e;
-    /* Pass the selected file name; backend resolves SD path. NULL means
-     * "resume the currently loaded job" — fine when nothing is selected.
-     *
-     * `f` is declared at function scope on purpose. It used to be a
-     * block-scoped array with `name` pointing into it, so the pointer
-     * dangled the moment the block closed and fluidnc_job_start's own frame
-     * (which carries a 96-byte command buffer) reused that stack region.
-     * The controller received "$SD/Run=/sd/TextBoxCutV2" (extension lopped
-     * off) and "$SD/Run=/sd/|\xef\xf3OBoxCS", and answered error:66 every
-     * time. Keep the storage alive for the whole call. */
-    fluidnc_file_t f;
-    const char *name = NULL;
-    if (s_selected_file_idx >= 0 &&
-        fluidnc_get_file((size_t)s_selected_file_idx, &f)) {
-        name = f.name;
+    /* Pass the selected file's PATH; the backend prefixes the SD mount. NULL
+     * means "resume the currently loaded job" - fine when nothing is selected.
+     * The path, not the bare name, is what makes a job inside a folder
+     * runnable: `$SD/Run=/sd/part.nc` fails with error:8 when the file is
+     * really at /sd/jobs/part.nc. */
+    const char *path = s_selected_file_path[0] ? s_selected_file_path : NULL;
+    ESP_LOGI(TAG, "load+run path=%s", path ? path : "(resume)");
+    esp_err_t err = fluidnc_job_start(path);
+    if (err == ESP_ERR_INVALID_STATE) {
+        /* Refused because a job is already running. Say so on the SELECTED
+         * card - a silent no-op is what invites the second tap. */
+        ESP_LOGW(TAG, "load+run ignored: a job is already running");
+        if (objects.files_det_bd_val) {
+            lv_label_set_text(objects.files_det_bd_val, "job running");
+        }
     }
-    ESP_LOGI(TAG, "load+run idx=%d name=%s", s_selected_file_idx,
-             name ? name : "(resume)");
-    fluidnc_job_start(name);
 }
 void action_file_refresh(lv_event_t *e)
 {

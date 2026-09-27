@@ -119,48 +119,80 @@ bool fluidnc_proto_get_msg(const char *line, char *out, size_t out_max)
     return true;
 }
 
-bool fluidnc_proto_parse_file_entry(const char *line, char *name, size_t name_max,
-                                    uint32_t *size_bytes)
+/* Shared body for the [FILE:] and [DIR:] forms. `fmt_spaces` is how many
+ * spaces the controller's format string itself contributes after the colon,
+ * before the depth indent starts: one for "[FILE: ", none for "[DIR:". */
+static bool parse_entry(const char *line, char *name, size_t name_max,
+                        uint32_t *size_bytes, int *depth, int fmt_spaces)
 {
+    if (size_bytes) *size_bytes = 0;
+    if (depth)      *depth      = 0;
     if (!line) return false;
-    /* "[FILE: /path/to/x.nc|123456]" — path begins after the colon, before '|';
-     * size between '|' and ']'. */
+
     const char *colon = strchr(line, ':');
     if (!colon) return false;
     colon++;
-    while (*colon == ' ') colon++;
-    const char *bar = strchr(colon, '|');
-    const char *end = strchr(colon, ']');
-    if (!end) return false;
-    const char *path_end = (bar && bar < end) ? bar : end;
 
-    /* Copy basename only — strip leading directory components so the UI sees
-     * "bracket_v3.nc" not "/spiffs/bracket_v3.nc". */
-    const char *slash = path_end;
-    while (slash > colon && slash[-1] != '/') slash--;
-    size_t len = (size_t)(path_end - slash);
+    /* Count the whole run of spaces, then charge the format string's own
+     * share of it; what's left is the tree depth. */
+    const char *p = colon;
+    while (*p == ' ') p++;
+    int spaces = (int)(p - colon) - fmt_spaces;
+    if (spaces < 0) spaces = 0;   /* a build that drops the literal space */
+    if (depth) *depth = spaces;
+
+    const char *bar = strchr(p, '|');
+    const char *end = strchr(p, ']');
+    if (!end) return false;
+    const char *name_end = (bar && bar < end) ? bar : end;
+    while (name_end > p && name_end[-1] == ' ') name_end--;
+
+    size_t len = (size_t)(name_end - p);
     if (name && name_max > 0) {
         if (len >= name_max) len = name_max - 1;
-        memcpy(name, slash, len);
+        memcpy(name, p, len);
         name[len] = '\0';
     }
 
-    if (size_bytes) {
-        *size_bytes = 0;
-        if (bar && bar < end) {
-            /* FluidNC lists entries as "[FILE: name.nc|SIZE:684]" — the
-             * literal "SIZE:" prefix made a bare strtoul() read 0 for
-             * every file. Skip it (case-insensitive) when present. */
-            const char *sz = bar + 1;
-            while (*sz == ' ') sz++;
-            if (strncasecmp(sz, "SIZE", 4) == 0) {
-                sz += 4;
-                while (*sz == ':' || *sz == ' ') sz++;
-            }
-            *size_bytes = (uint32_t)strtoul(sz, NULL, 10);
+    if (size_bytes && bar && bar < end) {
+        /* FluidNC writes "|SIZE:684"; a bare strtoul() on the literal "SIZE:"
+         * read 0 for every file. Skip the prefix (case-insensitive) when
+         * present, and accept a plain number when it isn't. */
+        const char *sz = bar + 1;
+        while (*sz == ' ') sz++;
+        if (strncasecmp(sz, "SIZE", 4) == 0) {
+            sz += 4;
+            while (*sz == ':' || *sz == ' ') sz++;
         }
+        *size_bytes = (uint32_t)strtoul(sz, NULL, 10);
     }
     return true;
+}
+
+bool fluidnc_proto_parse_file_entry(const char *line, char *name, size_t name_max,
+                                    uint32_t *size_bytes, int *depth)
+{
+    return parse_entry(line, name, name_max, size_bytes, depth, 1);
+}
+
+bool fluidnc_proto_parse_dir_entry(const char *line, char *name, size_t name_max,
+                                   int *depth)
+{
+    if (!parse_entry(line, name, name_max, NULL, depth, 0)) return false;
+    if (name && name_max > 0) {
+        /* Some builds spell a folder with a trailing slash; strip it so the
+         * same folder compares equal however it was written. */
+        size_t n = strlen(name);
+        while (n > 1 && name[n - 1] == '/') name[--n] = '\0';
+    }
+    return true;
+}
+
+const char *fluidnc_proto_basename(const char *path)
+{
+    if (!path) return NULL;
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
 }
 
 /* Case-insensitive find of `needle` in `hay`. */

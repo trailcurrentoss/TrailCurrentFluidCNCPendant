@@ -1,13 +1,21 @@
 /*******************************************************************************
  * Size: 30 px
  * Bpp: 4
- * Opts: --font /media/dave/extstorage/TrailCurrent/ExampleProjects/TrailCurrentFluidCNCPendant/assets/fonts/mono/DejaVuSansMono-Bold.ttf --size 30 --bpp 4 --format lvgl --lv-include lvgl.h -o /media/dave/extstorage/TrailCurrent/ExampleProjects/TrailCurrentFluidCNCPendant/main/ui/ui_font_mono_30.c -r 0x20-0x7F --no-compress --force-fast-kern-format
+ * Opts: --bpp 4 --size 30 --no-compress --font ../assets/fonts/mono/DejaVuSansMono-Bold.ttf --range 0x20-0x7F --format lvgl
  ******************************************************************************/
 
+#ifdef __has_include
+    #if __has_include("lvgl.h")
+        #ifndef LV_LVGL_H_INCLUDE_SIMPLE
+            #define LV_LVGL_H_INCLUDE_SIMPLE
+        #endif
+    #endif
+#endif
+
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
-#include "lvgl.h"
+    #include "lvgl.h"
 #else
-#include "lvgl.h"
+    #include "lvgl.h"
 #endif
 
 #ifndef UI_FONT_MONO_30
@@ -1984,7 +1992,6 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0x82, 0x0, 0x0, 0x0, 0x4a, 0xef, 0xea, 0x30
 };
 
-
 /*---------------------
  *  GLYPH DESCRIPTION
  *--------------------*/
@@ -2092,8 +2099,6 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
  *  CHARACTER MAPPING
  *--------------------*/
 
-
-
 /*Collect the unicode lists and glyph_id offsets*/
 static const lv_font_fmt_txt_cmap_t cmaps[] =
 {
@@ -2102,8 +2107,6 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
         .unicode_list = NULL, .glyph_id_ofs_list = NULL, .list_length = 0, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY
     }
 };
-
-
 
 /*--------------------
  *  ALL CUSTOM DATA
@@ -2133,8 +2136,6 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
 #endif
 };
 
-
-
 /*-----------------
  *  PUBLIC FONT
  *----------------*/
@@ -2163,7 +2164,4 @@ lv_font_t ui_font_mono_30 = {
     .user_data = NULL,
 };
 
-
-
 #endif /*#if UI_FONT_MONO_30*/
-

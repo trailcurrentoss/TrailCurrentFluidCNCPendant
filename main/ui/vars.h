@@ -12,8 +12,6 @@ extern "C" {
 
 // enum declarations
 
-
-
 // Flow global variables
 
 enum FlowGlobalVariables {
@@ -183,7 +181,6 @@ extern const char *get_var_probe_tool_dia();
 extern void set_var_probe_tool_dia(const char *value);
 extern const char *get_var_probe_edge_thick();
 extern void set_var_probe_edge_thick(const char *value);
-
 
 #ifdef __cplusplus
 }

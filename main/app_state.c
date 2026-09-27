@@ -31,6 +31,10 @@
 #endif
 
 static const char *TAG = "app_state";
+
+/* Defined further down, next to the PENDANT_TAB_* ids it indexes. Declared here
+ * because app_state_set() lands on the Dashboard before that point. */
+static void dock_highlight_active_tab(int tab_id);
 static app_state_t s_state = APP_STATE_BOOT;
 
 #if HAVE_UI
@@ -339,10 +343,123 @@ static const char *machine_state_text(fluidnc_state_t s)
  * grows the array). */
 typedef struct {
     lv_obj_t *row;
+    lv_obj_t *icon;   /* glyph swaps between file / folder / up-one-level */
     lv_obj_t *name;
     lv_obj_t *size;
     lv_obj_t *date;
 } file_row_t;
+
+/* --- Files page directory navigation ---------------------------------------
+ * The controller hands back one flat, recursive listing of the whole card;
+ * the pendant turns it into something browsable. s_files_cwd is the folder
+ * currently on screen, relative to the card root ("" = root), and the rows
+ * are a VIEW over the dispatcher's cache: one row per immediate child of
+ * s_files_cwd, folders first, plus a ".." row when we are below the root.
+ *
+ * Because of that, a row index is no longer an index into
+ * fluidnc_get_file() - everything that resolves a tap goes through
+ * app_state_files_tap() instead. */
+typedef struct {
+    app_files_tap_t kind;                /* NAV (folder / up) or FILE */
+    bool            is_up;               /* the ".." row, not a real folder */
+    char            path[FLUIDNC_PATH_MAX];  /* target dir, or the file path */
+    char            name[FLUIDNC_NAME_MAX];  /* what the name column shows */
+    uint32_t        size_bytes;
+    char            date[20];
+} files_view_t;
+
+static files_view_t *s_view     = NULL;
+static size_t        s_view_n   = 0;   /* rows the current folder needs */
+static size_t        s_view_cap = 0;
+static char          s_files_cwd[FLUIDNC_PATH_MAX];
+/* Set when the folder changes so the repaint knows to jump back to the top. */
+static bool          s_files_cwd_changed = false;
+
+/* FontAwesome glyphs, all inside the fa_22 subset the .eez-project builds:
+ * file (U+F15C), folder (U+F07B), arrow-up (U+F062). */
+#define FILES_GLYPH_FILE   "\xEF\x85\x9C"
+#define FILES_GLYPH_FOLDER "\xEF\x81\xBB"
+#define FILES_GLYPH_UP     "\xEF\x81\xA2"
+
+/* Is `path` an immediate child of the folder on screen? Returns the child's
+ * own name (a pointer into `path`) if so, else NULL. "jobs" is a child of the
+ * root; "jobs/part.nc" is not - it belongs to "jobs". */
+static const char *cwd_child(const char *path)
+{
+    size_t cl = strlen(s_files_cwd);
+    if (cl > 0) {
+        if (strncmp(path, s_files_cwd, cl) != 0 || path[cl] != '/') return NULL;
+        path += cl + 1;
+    }
+    if (path[0] == '\0' || strchr(path, '/') != NULL) return NULL;
+    return path;
+}
+
+static bool files_view_reserve(size_t need)
+{
+    if (need <= s_view_cap) return true;
+    size_t cap = s_view_cap ? s_view_cap * 2 : 16;
+    while (cap < need) cap *= 2;
+    files_view_t *p = realloc(s_view, cap * sizeof(*p));
+    if (!p) return false;
+    s_view     = p;
+    s_view_cap = cap;
+    return true;
+}
+
+static void files_view_push(const files_view_t *v)
+{
+    if (!files_view_reserve(s_view_n + 1)) {
+        ESP_LOGE(TAG, "file view: out of memory at %u rows", (unsigned)s_view_n);
+        return;
+    }
+    s_view[s_view_n++] = *v;
+}
+
+/* Rebuild s_view from the dispatcher's cache for the current folder. */
+static void files_build_view(void)
+{
+    s_view_n = 0;
+
+    /* ".." first, so leaving a folder is always the top row. */
+    if (s_files_cwd[0]) {
+        files_view_t up;
+        memset(&up, 0, sizeof(up));
+        up.kind  = APP_FILES_TAP_NAV;
+        up.is_up = true;
+        /* Parent of the current folder; empty string means the card root. */
+        const char *slash = strrchr(s_files_cwd, '/');
+        if (slash) {
+            size_t len = (size_t)(slash - s_files_cwd);
+            if (len >= sizeof(up.path)) len = sizeof(up.path) - 1;
+            memcpy(up.path, s_files_cwd, len);
+            up.path[len] = '\0';
+        }
+        strlcpy(up.name, "..", sizeof(up.name));
+        strlcpy(up.date, "UP", sizeof(up.date));
+        files_view_push(&up);
+    }
+
+    /* Two passes so folders group above files without needing a sort. */
+    size_t n = fluidnc_get_file_count();
+    for (int want_dir = 1; want_dir >= 0; want_dir--) {
+        for (size_t i = 0; i < n; i++) {
+            fluidnc_file_t f;
+            if (!fluidnc_get_file(i, &f)) continue;
+            if (f.is_dir != (want_dir == 1)) continue;
+            const char *child = cwd_child(f.path);
+            if (!child) continue;
+            files_view_t v;
+            memset(&v, 0, sizeof(v));
+            v.kind       = f.is_dir ? APP_FILES_TAP_NAV : APP_FILES_TAP_FILE;
+            v.size_bytes = f.is_dir ? 0 : f.size_bytes;
+            strlcpy(v.path, f.path, sizeof(v.path));
+            strlcpy(v.name, child,  sizeof(v.name));
+            strlcpy(v.date, f.is_dir ? "FOLDER" : f.date, sizeof(v.date));
+            files_view_push(&v);
+        }
+    }
+}
 
 static file_row_t *s_file_rows   = NULL;
 static size_t      s_file_rows_n = 0;   /* widgets allocated, not files shown */
@@ -409,13 +526,15 @@ static void create_file_row_locked(size_t idx)
                         (void *)(intptr_t)idx);
     s_file_rows[idx].row = row;
 
-    /* File-type icon (FA "file" glyph U+F15C) — same position the .eez-project
-     * placed it. */
+    /* Row icon - same position the .eez-project placed it. */
     lv_obj_t *icon = lv_label_create(row);
     add_style_icon_fa22(icon);
     lv_obj_set_pos(icon, 10, 9);
     lv_obj_set_size(icon, 26, 26);
-    lv_label_set_text(icon, "\xEF\x85\x9C");
+    /* Glyph is set per repaint now - a row can hold a file, a folder, or the
+     * ".." entry depending on which folder is on screen. */
+    lv_label_set_text(icon, FILES_GLYPH_FILE);
+    s_file_rows[idx].icon = icon;
 
     /* Name — long label, Montserrat 14 (matches EEZ local_font override). */
     lv_obj_t *name = lv_label_create(row);
@@ -465,43 +584,62 @@ void app_state_files_select_visual(int idx)
     }
 }
 
-/* Paint one row per file the controller reported — however many that is —
- * and hide any rows left over from a longer previous listing. Rows are
+/* Paint one row per entry in the folder currently on screen - folders first,
+ * then files, with a ".." row on top when we are below the card root. Rows are
  * created lazily and the card scrolls, so nothing here caps the count. */
 static void refresh_files_display_locked(void)
 {
-    size_t n = fluidnc_get_file_count();
+    files_build_view();
+    size_t n = s_view_n;
 
-    /* The listing has arrived (or we're painting cached state) — the
+    /* The listing has arrived (or we're painting cached state) - the
      * loading spinner's job is done either way. */
     if (objects.files_spinner) {
         lv_obj_add_flag(objects.files_spinner, LV_OBJ_FLAG_HIDDEN);
     }
 
     /* Grow the row array to fit. On allocation failure, paint what we can
-     * rather than dropping the whole list — and say so, because a silently
+     * rather than dropping the whole list - and say so, because a silently
      * short list is exactly the failure that hides a file from the user. */
     size_t shown = n;
     if (!file_rows_reserve(n)) {
         shown = s_file_rows_n;
-        ESP_LOGE(TAG, "file rows: out of memory — showing %u of %u files",
+        ESP_LOGE(TAG, "file rows: out of memory - showing %u of %u entries",
                  (unsigned)shown, (unsigned)n);
     }
 
+    size_t n_dirs = 0, n_files = 0;
     for (size_t i = 0; i < s_file_rows_n; i++) {
-        fluidnc_file_t f;
-        if (i < shown && fluidnc_get_file(i, &f)) {
+        if (i < shown) {
+            const files_view_t *v = &s_view[i];
+            bool is_up  = v->is_up;
+            bool is_dir = (v->kind == APP_FILES_TAP_NAV);
+            if (is_dir && !is_up) n_dirs++;
+            else if (!is_dir)     n_files++;
+
             if (!s_file_rows[i].row) create_file_row_locked(i);
-            if (s_file_rows[i].name) lv_label_set_text(s_file_rows[i].name, f.name);
+            if (s_file_rows[i].icon) {
+                lv_label_set_text(s_file_rows[i].icon,
+                                  is_up  ? FILES_GLYPH_UP :
+                                  is_dir ? FILES_GLYPH_FOLDER : FILES_GLYPH_FILE);
+            }
+            if (s_file_rows[i].name) lv_label_set_text(s_file_rows[i].name, v->name);
             if (s_file_rows[i].size) {
-                char buf[16];
-                uint32_t kb = (f.size_bytes + 512) / 1024;
-                if (kb >= 1024) snprintf(buf, sizeof(buf), "%.1f MB", kb / 1024.0f);
-                else            snprintf(buf, sizeof(buf), "%u KB", (unsigned)kb);
-                lv_label_set_text(s_file_rows[i].size, buf);
+                if (is_dir) {
+                    /* A folder has no size to report and FluidNC doesn't count
+                     * what is inside one, so the column stays blank rather
+                     * than claiming "0 KB". */
+                    lv_label_set_text(s_file_rows[i].size, "");
+                } else {
+                    char buf[16];
+                    uint32_t kb = (v->size_bytes + 512) / 1024;
+                    if (kb >= 1024) snprintf(buf, sizeof(buf), "%.1f MB", kb / 1024.0f);
+                    else            snprintf(buf, sizeof(buf), "%u KB", (unsigned)kb);
+                    lv_label_set_text(s_file_rows[i].size, buf);
+                }
             }
             if (s_file_rows[i].date) {
-                lv_label_set_text(s_file_rows[i].date, f.date[0] ? f.date : "");
+                lv_label_set_text(s_file_rows[i].date, v->date);
             }
             if (s_file_rows[i].row) lv_obj_clear_flag(s_file_rows[i].row, LV_OBJ_FLAG_HIDDEN);
         } else if (s_file_rows[i].row) {
@@ -509,29 +647,48 @@ static void refresh_files_display_locked(void)
         }
     }
 
-    /* Scroll back to the top when the listing itself changes, so a fresh
-     * $SD/List doesn't leave the view stranded partway down a now-shorter
-     * list. Deliberately NOT on every repaint: files_seq also bumps on the
-     * storage-capacity lines, and yanking the view to the top while the
-     * user is scrolling would be maddening. */
+    /* Scroll back to the top when the listing itself changes, or when the user
+     * opens a different folder, so neither leaves the view stranded partway
+     * down a now-shorter list. Deliberately NOT on every repaint: files_seq
+     * also bumps on the storage-capacity lines, and yanking the view to the
+     * top while the user is scrolling would be maddening. */
     static size_t s_last_painted_n = (size_t)-1;
-    if (objects.files_list_card && n != s_last_painted_n) {
+    if (objects.files_list_card && (n != s_last_painted_n || s_files_cwd_changed)) {
         lv_obj_scroll_to_y(objects.files_list_card, 0, LV_ANIM_OFF);
     }
-    s_last_painted_n = n;
+    s_last_painted_n    = n;
+    s_files_cwd_changed = false;
 
     if (objects.files_count) {
-        char buf[24];
-        /* Report the controller's true total, not the number of rows that
-         * happened to fit — a truncated count is what would hide a file. */
-        snprintf(buf, sizeof(buf), "%u file%s", (unsigned)n, n == 1 ? "" : "s");
+        char buf[40];
+        /* Report what this folder holds. Folders are counted separately: "5
+         * files" on a card whose jobs are all one level down was the reading
+         * that made the subdirectories look like they didn't exist. */
+        if (n_dirs > 0) {
+            snprintf(buf, sizeof(buf), "%u folder%s, %u file%s",
+                     (unsigned)n_dirs, n_dirs == 1 ? "" : "s",
+                     (unsigned)n_files, n_files == 1 ? "" : "s");
+        } else {
+            snprintf(buf, sizeof(buf), "%u file%s",
+                     (unsigned)n_files, n_files == 1 ? "" : "s");
+        }
         lv_label_set_text(objects.files_count, buf);
     }
 
-    /* Caption — the source of the listing, fixed text now that we always
-     * query the controller's SD card. */
+    /* Caption doubles as the breadcrumb so the user can tell which folder the
+     * rows belong to. Trimmed from the left when it won't fit - the deepest
+     * components are the informative ones. */
     if (objects.files_caption) {
-        lv_label_set_text(objects.files_caption, "SD CARD");
+        if (s_files_cwd[0] == '\0') {
+            lv_label_set_text(objects.files_caption, "SD CARD");
+        } else {
+            char buf[32];
+            const char *cwd = s_files_cwd;
+            size_t room = sizeof(buf) - strlen("SD CARD / ") - 1;
+            if (strlen(cwd) > room) cwd += strlen(cwd) - room;
+            snprintf(buf, sizeof(buf), "SD CARD / %s", cwd);
+            lv_label_set_text(objects.files_caption, buf);
+        }
     }
 
     /* Storage tile — pull cached SD capacity from the dispatcher. The
@@ -576,6 +733,32 @@ void app_state_refresh_files_display(void)
     bsp_display_lock(0);
     refresh_files_display_locked();
     bsp_display_unlock();
+}
+
+app_files_tap_t app_state_files_tap(int idx, fluidnc_file_t *out)
+{
+    if (idx < 0 || (size_t)idx >= s_view_n) return APP_FILES_TAP_NONE;
+    const files_view_t *v = &s_view[idx];
+
+    if (v->kind == APP_FILES_TAP_FILE) {
+        if (out) {
+            memset(out, 0, sizeof(*out));
+            strlcpy(out->path, v->path, sizeof(out->path));
+            strlcpy(out->name, v->name, sizeof(out->name));
+            strlcpy(out->date, v->date, sizeof(out->date));
+            out->size_bytes = v->size_bytes;
+        }
+        return APP_FILES_TAP_FILE;
+    }
+
+    /* A folder (or "..") - move there and repaint. v->path is already the
+     * destination: the folder itself, or the parent for the ".." row. */
+    strlcpy(s_files_cwd, v->path, sizeof(s_files_cwd));
+    s_files_cwd_changed = true;
+    app_state_files_select_visual(-1);
+    refresh_files_display_locked();
+
+    return APP_FILES_TAP_NAV;
 }
 
 void app_state_files_show_loading(void)
@@ -953,6 +1136,20 @@ static void on_fluid_status(const fluidnc_status_t *st, void *ctx)
     }
     s_job_was_running = st->job_running;
 
+    /* Grey out Load & Run whenever a new job can't be started. The gate that
+     * actually matters is in fluidnc_job_start() - this is so the user can SEE
+     * that the button is spent, instead of tapping it again and queueing a
+     * duplicate pass. Appearance of the DISABLED state belongs to EEZ Studio;
+     * C only sets the state. */
+    if (objects.files_btn_load) {
+        bool busy = st->job_running
+                    || st->state == FLUIDNC_STATE_RUN
+                    || st->state == FLUIDNC_STATE_HOLD
+                    || st->state == FLUIDNC_STATE_HOMING;
+        if (busy) lv_obj_add_state(objects.files_btn_load, LV_STATE_DISABLED);
+        else      lv_obj_clear_state(objects.files_btn_load, LV_STATE_DISABLED);
+    }
+
     set_var_job_file(st->job_file);
     set_var_job_pct((int32_t)st->job_progress_pct);
     set_var_job_line(st->job_line);
@@ -1078,6 +1275,9 @@ void app_state_set(app_state_t next)
     }
     case APP_STATE_PENDANT:
         load_screen(objects.page_dashboard);
+        /* Dashboard is tab 0 - light its dock button so the very first screen
+         * the user sees already shows which tab is active. */
+        dock_highlight_active_tab(0);
         fluid_connect_timer_disarm();
         break;
     }
@@ -1105,6 +1305,43 @@ void app_state_refresh_connection_display(void)
 #define PENDANT_TAB_PROBE     5
 #define PENDANT_TAB_MACROS    6
 #define PENDANT_TAB_SETTINGS  7
+#define PENDANT_TAB_COUNT     8
+
+/* Highlight the active tab in the bottom dock.
+ *
+ * The dock is a user widget instanced on all 8 pendant screens, so each screen
+ * carries its OWN 8 dock buttons and they are addressed per instance
+ * (page_<screen>_dock__dock_btn_<tab>) - there is no single objects.dock_btn_x.
+ * Every instance gets the same tab checked so whichever screen the user lands
+ * on already shows the right highlight.
+ *
+ * C only sets the state; BtnDockInactive's MAIN/CHECKED in the .eez-project
+ * supplies the look, and the button's checked text_color is inherited by the
+ * dock label and icon (neither declares its own), so all three change together.
+ */
+static void dock_highlight_active_tab(int tab_id)
+{
+    lv_obj_t *const docks[][PENDANT_TAB_COUNT] = {
+        { objects.page_dashboard_dock__dock_btn_dash, objects.page_dashboard_dock__dock_btn_jog, objects.page_dashboard_dock__dock_btn_run, objects.page_dashboard_dock__dock_btn_files, objects.page_dashboard_dock__dock_btn_spindle, objects.page_dashboard_dock__dock_btn_probe, objects.page_dashboard_dock__dock_btn_macros, objects.page_dashboard_dock__dock_btn_settings },
+        { objects.page_jog_dock__dock_btn_dash, objects.page_jog_dock__dock_btn_jog, objects.page_jog_dock__dock_btn_run, objects.page_jog_dock__dock_btn_files, objects.page_jog_dock__dock_btn_spindle, objects.page_jog_dock__dock_btn_probe, objects.page_jog_dock__dock_btn_macros, objects.page_jog_dock__dock_btn_settings },
+        { objects.page_run_dock__dock_btn_dash, objects.page_run_dock__dock_btn_jog, objects.page_run_dock__dock_btn_run, objects.page_run_dock__dock_btn_files, objects.page_run_dock__dock_btn_spindle, objects.page_run_dock__dock_btn_probe, objects.page_run_dock__dock_btn_macros, objects.page_run_dock__dock_btn_settings },
+        { objects.page_files_dock__dock_btn_dash, objects.page_files_dock__dock_btn_jog, objects.page_files_dock__dock_btn_run, objects.page_files_dock__dock_btn_files, objects.page_files_dock__dock_btn_spindle, objects.page_files_dock__dock_btn_probe, objects.page_files_dock__dock_btn_macros, objects.page_files_dock__dock_btn_settings },
+        { objects.page_spindle_dock__dock_btn_dash, objects.page_spindle_dock__dock_btn_jog, objects.page_spindle_dock__dock_btn_run, objects.page_spindle_dock__dock_btn_files, objects.page_spindle_dock__dock_btn_spindle, objects.page_spindle_dock__dock_btn_probe, objects.page_spindle_dock__dock_btn_macros, objects.page_spindle_dock__dock_btn_settings },
+        { objects.page_probe_dock__dock_btn_dash, objects.page_probe_dock__dock_btn_jog, objects.page_probe_dock__dock_btn_run, objects.page_probe_dock__dock_btn_files, objects.page_probe_dock__dock_btn_spindle, objects.page_probe_dock__dock_btn_probe, objects.page_probe_dock__dock_btn_macros, objects.page_probe_dock__dock_btn_settings },
+        { objects.page_macros_dock__dock_btn_dash, objects.page_macros_dock__dock_btn_jog, objects.page_macros_dock__dock_btn_run, objects.page_macros_dock__dock_btn_files, objects.page_macros_dock__dock_btn_spindle, objects.page_macros_dock__dock_btn_probe, objects.page_macros_dock__dock_btn_macros, objects.page_macros_dock__dock_btn_settings },
+        { objects.page_settings_dock__dock_btn_dash, objects.page_settings_dock__dock_btn_jog, objects.page_settings_dock__dock_btn_run, objects.page_settings_dock__dock_btn_files, objects.page_settings_dock__dock_btn_spindle, objects.page_settings_dock__dock_btn_probe, objects.page_settings_dock__dock_btn_macros, objects.page_settings_dock__dock_btn_settings },
+    };
+    const size_t n_docks = sizeof(docks) / sizeof(docks[0]);
+    for (size_t d = 0; d < n_docks; d++) {
+        for (int t = 0; t < PENDANT_TAB_COUNT; t++) {
+            lv_obj_t *btn = docks[d][t];
+            if (!btn) continue;
+            if (t == tab_id) lv_obj_add_state(btn,   LV_STATE_CHECKED);
+            else             lv_obj_clear_state(btn, LV_STATE_CHECKED);
+        }
+    }
+}
+
 
 void app_state_set_pendant_tab(int tab_id)
 {
@@ -1116,6 +1353,7 @@ void app_state_set_pendant_tab(int tab_id)
     };
     if (tab_id < 0 || tab_id >= (int)(sizeof(screens) / sizeof(screens[0]))) return;
     load_screen(screens[tab_id]);
+    dock_highlight_active_tab(tab_id);
 
     /* Opening the Files tab triggers a fresh listing from the controller so
      * the user sees current SD contents, not whatever was cached from the

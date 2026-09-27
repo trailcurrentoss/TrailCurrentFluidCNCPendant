@@ -191,6 +191,48 @@ static inline void files_unlock(void)
     if (s_files_mtx) xSemaphoreGive(s_files_mtx);
 }
 
+/* Folder the listing is currently inside, one entry per tree level, rebuilt as
+ * the reply streams in. FluidNC reports only filenames plus an indent depth, so
+ * a file at depth N belongs to the most recent [DIR:] seen at each level above
+ * it - this stack is what turns "depth 1, TestCut.nc" back into
+ * "TestPiece/TestCut.nc". Touched only by the rx task, between the `$SD/List`
+ * send and its closing `ok`. */
+#define FLUIDNC_LIST_MAX_DEPTH 8
+static char s_dir_stack[FLUIDNC_LIST_MAX_DEPTH][FLUIDNC_NAME_MAX];
+
+/* Write the full relative path of `name` at tree depth `depth` into `out`. */
+static void list_path_at_depth(char *out, size_t out_max, int depth, const char *name)
+{
+    out[0] = '\0';
+    size_t used = 0;
+    for (int d = 0; d < depth && d < FLUIDNC_LIST_MAX_DEPTH; d++) {
+        if (!s_dir_stack[d][0]) continue;
+        int w = snprintf(out + used, out_max - used, "%s/", s_dir_stack[d]);
+        if (w < 0 || (size_t)w >= out_max - used) return;   /* truncated */
+        used += (size_t)w;
+    }
+    snprintf(out + used, out_max - used, "%s", name);
+}
+
+/* Normalise a path as the controller reported it into the pendant's canonical
+ * form: relative to the card root, no leading or trailing slash. FluidNC spells
+ * the same entry differently across versions and commands — "/sd/part.nc",
+ * "part.nc", "/sd/jobs/" — and the Files page's folder matching only works if
+ * one spelling reaches it. Rewrites in place; never lengthens the string. */
+static void strip_sd_prefix(char *p)
+{
+    char *start = p;
+    while (*start == '/') start++;
+    /* Only the mount point itself, not a folder that merely starts with "sd". */
+    if (strncasecmp(start, "sd", 2) == 0 && (start[2] == '/' || start[2] == '\0')) {
+        start += 2;
+        while (*start == '/') start++;
+    }
+    if (start != p) memmove(p, start, strlen(start) + 1);
+    size_t n = strlen(p);
+    while (n && p[n - 1] == '/') p[--n] = '\0';
+}
+
 /* Ensure room for `need` entries. Caller must hold the files mutex. */
 static bool files_reserve(size_t need)
 {
@@ -202,6 +244,62 @@ static bool files_reserve(size_t need)
     s_files     = p;
     s_files_cap = cap;
     return true;
+}
+
+/* Append one entry unless its path is already cached. Caller holds the mutex.
+ * Duplicates are routine, not exceptional: a recursive listing names a folder
+ * both in its own `[DIR:]` line and in the path of every file beneath it, and
+ * a per-directory refresh re-reports entries the root listing already gave. */
+static void files_append_unique_locked(const fluidnc_file_t *f)
+{
+    for (size_t i = 0; i < s_files_n; i++) {
+        if (strcmp(s_files[i].path, f->path) == 0) {
+            /* A real `[DIR:]`/`[FILE:]` line supersedes a placeholder folder
+             * synthesised from a path, and carries the size with it. */
+            if (!f->is_dir && s_files[i].is_dir) s_files[i] = *f;
+            else if (f->size_bytes) s_files[i].size_bytes = f->size_bytes;
+            return;
+        }
+    }
+    if (files_reserve(s_files_n + 1)) {
+        s_files[s_files_n++] = *f;
+    } else {
+        ESP_LOGE(TAG, "file list: out of memory at %u entries - "
+                      "listing truncated", (unsigned)s_files_n);
+    }
+}
+
+/* Add a folder entry for every directory named in a cached file's path.
+ * FluidNC's `$SD/List` is recursive but does not necessarily emit a `[DIR:]`
+ * line for each folder it walks into — on some builds the folder exists only
+ * as a prefix on the file paths. Without this, a card whose jobs all live in
+ * subfolders offered the user nothing to open. Caller holds the mutex. */
+static void files_derive_dirs_locked(void)
+{
+    /* Static for the same reason as s_entry_scratch: this runs on the rx task
+     * inside handle_line, whose frame has to leave room for strtod(). */
+    static fluidnc_file_t d;
+    static char           path[FLUIDNC_PATH_MAX];
+
+    /* Snapshot the count: the loop appends, and only the entries present when
+     * it started can contribute new prefixes. */
+    size_t n0 = s_files_n;
+    for (size_t i = 0; i < n0; i++) {
+        if (s_files[i].is_dir) continue;
+        /* Copy before appending - files_reserve() may realloc s_files out from
+         * under a pointer into it. */
+        strlcpy(path, s_files[i].path, sizeof(path));
+        for (char *slash = strchr(path, '/'); slash; slash = strchr(slash + 1, '/')) {
+            memset(&d, 0, sizeof(d));
+            d.is_dir = true;
+            size_t len = (size_t)(slash - path);
+            if (len >= sizeof(d.path)) continue;
+            memcpy(d.path, path, len);
+            d.path[len] = '\0';
+            strlcpy(d.name, fluidnc_proto_basename(d.path), sizeof(d.name));
+            files_append_unique_locked(&d);
+        }
+    }
 }
 
 /* Most recent `[MSG:ERR: ...]` text and when it landed. An ALARM that
@@ -405,6 +503,112 @@ static void apply_status_report(const fluidnc_status_report_t *r)
     notify();
 }
 
+/* Scratch for the two listing handlers below. These live off the stack on
+ * purpose: fluidnc_file_t is 412 bytes and handle_line's frame has to leave
+ * room for newlib's strtod(), which the SD capacity line pulls in and which
+ * wants about a kilobyte of its own. Two of these as locals overflowed the rx
+ * task outright. Safe as statics because only the rx task ever runs them, one
+ * line at a time. */
+static fluidnc_file_t s_entry_scratch;
+static char           s_entry_name[FLUIDNC_LINE_MAX];
+
+/* One "[FILE: <indent><name>|SIZE:n]" line. Kept out of line so its buffers
+ * are not part of handle_line's frame. */
+static void handle_file_entry(const char *line)
+{
+    int depth = 0;
+    uint32_t size_bytes = 0;
+    /* Parse into a full-width buffer first, never straight into f.name: the
+     * extension test below has to see the WHOLE name. A name longer than
+     * f.name gets truncated on copy, and truncation lops off the ".nc", so
+     * testing the truncated copy discarded exactly the files with the longest
+     * (most descriptive) CAM-generated names while short ones listed fine.
+     * Test first, copy second. */
+    if (!fluidnc_proto_parse_file_entry(line, s_entry_name, sizeof(s_entry_name),
+                                        &size_bytes, &depth)) return;
+    /* Decide path-vs-filename BEFORE normalising: strip_sd_prefix() removes the
+     * mount, and "/sd/part.nc" would then look like a bare name whose (bogus)
+     * indent depth got applied on top of the folder stack. */
+    /* Only a reported PATH can carry the mount prefix, so a bare filename is
+     * left alone: normalising one would delete a root folder named "sd". */
+    bool reported_path = strchr(s_entry_name, '/') != NULL;
+    if (reported_path) strip_sd_prefix(s_entry_name);
+    if (!s_entry_name[0]) return;
+
+    /* Only surface runnable g-code - the card also carries config.yaml,
+     * index.html.gz, logs etc., none of which should be selectable as a job. */
+    const char *dot = strrchr(fluidnc_proto_basename(s_entry_name), '.');
+    if (!dot || strcasecmp(dot, ".nc") != 0) {
+        ESP_LOGD(TAG, "file listing: skipped \"%s\" (not .nc)", s_entry_name);
+        return;
+    }
+
+    fluidnc_file_t *f = &s_entry_scratch;
+    memset(f, 0, sizeof(*f));
+    f->size_bytes = size_bytes;
+    if (reported_path) {
+        /* A build that reports full paths: take it as given, ignore the depth. */
+        strlcpy(f->path, s_entry_name, sizeof(f->path));
+    } else {
+        list_path_at_depth(f->path, sizeof(f->path), depth, s_entry_name);
+    }
+    strlcpy(f->name, fluidnc_proto_basename(f->path), sizeof(f->name));
+    /* A path too long to store is still shown, but it cannot be run -
+     * `$SD/Run=` would carry a truncated path and the controller would answer
+     * error:8. Say so loudly rather than letting the user find out by tapping
+     * Run on a job that refuses to start. */
+    if (strlen(f->path) >= sizeof(f->path) - 1) {
+        ESP_LOGW(TAG, "file path at or over %d chars, NOT runnable: %s",
+                 (int)sizeof(f->path) - 1, f->path);
+    }
+    f->date[0] = '\0';   /* FluidNC doesn't report mtime */
+
+    files_lock();
+    files_append_unique_locked(f);
+    files_unlock();
+}
+
+/* One "[DIR:<indent><name>]" line. Folders are part of the listing now: the
+ * pendant shows them as openable rows so jobs filed in a subdirectory are
+ * reachable at all. The line also updates the depth stack, which is what lets
+ * the following deeper [FILE:] lines be attributed to this folder. */
+static void handle_dir_entry(const char *line)
+{
+    int depth = 0;
+    if (!fluidnc_proto_parse_dir_entry(line, s_entry_name, sizeof(s_entry_name),
+                                       &depth)) return;
+    /* Only a reported PATH can carry the mount prefix, so a bare filename is
+     * left alone: normalising one would delete a root folder named "sd". */
+    bool reported_path = strchr(s_entry_name, '/') != NULL;
+    if (reported_path) strip_sd_prefix(s_entry_name);
+    if (!s_entry_name[0]) return;
+
+    fluidnc_file_t *d = &s_entry_scratch;
+    memset(d, 0, sizeof(*d));
+    d->is_dir = true;
+    if (reported_path) {
+        strlcpy(d->path, s_entry_name, sizeof(d->path));
+    } else {
+        list_path_at_depth(d->path, sizeof(d->path), depth, s_entry_name);
+        /* Remember this folder as the enclosing one for the next level down.
+         * Anything deeper than the stack is listed but not descended into,
+         * which is better than writing past the array. */
+        if (depth >= 0 && depth < FLUIDNC_LIST_MAX_DEPTH) {
+            strlcpy(s_dir_stack[depth], fluidnc_proto_basename(d->path),
+                    sizeof(s_dir_stack[depth]));
+        } else {
+            ESP_LOGW(TAG, "folder nested deeper than %d levels, contents not "
+                          "browsable: %s", FLUIDNC_LIST_MAX_DEPTH, d->path);
+        }
+    }
+    strlcpy(d->name, fluidnc_proto_basename(d->path), sizeof(d->name));
+
+    files_lock();
+    files_append_unique_locked(d);
+    files_unlock();
+    ESP_LOGD(TAG, "DIR: %s (depth %d)", d->path, depth);
+}
+
 /* Dispatch a single classified line. */
 static void handle_line(const char *line)
 {
@@ -426,8 +630,12 @@ static void handle_line(const char *line)
     case FLUIDNC_RX_OK:
         if (s_collecting_files) {
             s_collecting_files = false;
+            files_lock();
+            files_derive_dirs_locked();
+            size_t n = s_files_n;
+            files_unlock();
             s_files_seq++;
-            ESP_LOGI(TAG, "file listing complete (%u entries)", (unsigned)s_files_n);
+            ESP_LOGI(TAG, "file listing complete (%u entries)", (unsigned)n);
             notify();
         }
         /* Bookkeeping for the jog flow control. ok's for non-jog commands
@@ -509,51 +717,11 @@ static void handle_line(const char *line)
         }
         break;
     }
-    case FLUIDNC_RX_FILE_ENTRY: {
-        if (!s_collecting_files) break;
-        fluidnc_file_t f;
-        memset(&f, 0, sizeof(f));
-        /* Parse into a full-line buffer first, never straight into f.name.
-         * The extension test below has to see the WHOLE name: a name longer
-         * than f.name gets truncated on copy, and truncation lops off the
-         * ".nc" — so testing the truncated copy threw away exactly the
-         * files with the longest (most descriptive) CAM-generated names,
-         * while short ones listed fine. Test first, copy second. */
-        char full[FLUIDNC_LINE_MAX];
-        uint32_t size_bytes = 0;
-        if (!fluidnc_proto_parse_file_entry(line, full, sizeof(full),
-                                            &size_bytes)) break;
-        /* Only surface runnable g-code — the SD card also carries
-         * config.yaml, index.html.gz, logs etc., none of which the
-         * user should be able to select as a job. */
-        const char *dot = strrchr(full, '.');
-        if (!dot || strcasecmp(dot, ".nc") != 0) {
-            ESP_LOGD(TAG, "file listing: skipped \"%s\" (not .nc)", full);
-            break;
-        }
-        f.size_bytes = size_bytes;
-        /* A name too long to store is still shown, but it cannot be run —
-         * `$SD/Run=` would carry the truncated path and the controller
-         * would answer error:8. Say so loudly rather than letting the user
-         * discover it by tapping Run on a job that refuses to start. */
-        if (strlcpy(f.name, full, sizeof(f.name)) >= sizeof(f.name)) {
-            ESP_LOGW(TAG, "file name longer than %d chars, truncated and NOT "
-                          "runnable: %s", (int)sizeof(f.name) - 1, full);
-        }
-        f.date[0] = '\0';  /* FluidNC doesn't report mtime */
-        files_lock();
-        if (files_reserve(s_files_n + 1)) {
-            s_files[s_files_n++] = f;
-        } else {
-            ESP_LOGE(TAG, "file list: out of memory at %u entries — "
-                          "listing truncated", (unsigned)s_files_n);
-        }
-        files_unlock();
+    case FLUIDNC_RX_FILE_ENTRY:
+        if (s_collecting_files) handle_file_entry(line);
         break;
-    }
     case FLUIDNC_RX_DIR_ENTRY:
-        /* Subdirectories not exposed by the pendant UI yet — log and skip. */
-        ESP_LOGD(TAG, "DIR: %s", line);
+        if (s_collecting_files) handle_dir_entry(line);
         break;
     case FLUIDNC_RX_WELCOME: {
         ESP_LOGI(TAG, "controller: %s", line);
@@ -796,7 +964,11 @@ esp_err_t fluidnc_connect(void)
 
     if (!s_run_tasks) {
         s_run_tasks = true;
-        xTaskCreatePinnedToCore(rx_parse_task,    "fluidnc_rx",  4096, NULL, 5, &s_rx_task,   0);
+        /* 6 KB, not 4: handle_line ends up in newlib's strtod() via the SD
+     * capacity line ("[/sd/ Free:59.46 GB ...]"), and _Balloc/__d2b want
+     * roughly a kilobyte on their own. At 4096 that tripped the stack
+     * protection fault the moment a listing finished. */
+    xTaskCreatePinnedToCore(rx_parse_task,    "fluidnc_rx",  6144, NULL, 5, &s_rx_task,   0);
         xTaskCreatePinnedToCore(status_poll_task, "fluidnc_pol", 3072, NULL, 5, &s_poll_task, 0);
     }
     return s_transport->open(cfg);
@@ -1172,22 +1344,57 @@ esp_err_t fluidnc_mist (bool on)
     return err;
 }
 
-esp_err_t fluidnc_job_start(const char *file_name)
+/* Path (relative to the card root) of the job most recently sent to the
+ * controller. s_status.job_file holds only the basename, because that is what
+ * the Dashboard and Run headers display and it is capped at FLUIDNC_NAME_MAX;
+ * resuming needs the directory back, so the full path is kept here. */
+static char s_job_path[FLUIDNC_PATH_MAX];
+
+esp_err_t fluidnc_job_start(const char *file_path)
 {
     if (s_status.state == FLUIDNC_STATE_ALARM) return ESP_OK;
-    /* Must hold "$SD/Run=/sd/" + a full-length name + newline + NUL. At the
+
+    /* One job at a time, refused here rather than sent.
+     *
+     * A second `$SD/Run=` while a job is running is NOT rejected by the
+     * controller - the line waits in its input stream and runs the moment the
+     * first pass ends, so the same file cuts twice with no way to cancel the
+     * second pass. That is not hypothetical: a UI stall (see telnet_write)
+     * made Load & Run look like it had done nothing, the natural second tap
+     * queued a duplicate, and a job ran twice on real stock.
+     *
+     * RUN/HOLD/HOMING are blocked alongside job_running so a start can't be
+     * dropped into the middle of a macro's rapid or a homing cycle either.
+     * The gate reopens when the job ends on its own, or on STOP / E-STOP,
+     * both of which clear job_running. */
+    if (s_status.job_running
+        || s_status.state == FLUIDNC_STATE_RUN
+        || s_status.state == FLUIDNC_STATE_HOLD
+        || s_status.state == FLUIDNC_STATE_HOMING) {
+        ESP_LOGW(TAG, "start refused: machine busy (job_running=%d state=%d) "
+                      "- stop the current job first",
+                 (int)s_status.job_running, (int)s_status.state);
+        return ESP_ERR_INVALID_STATE;
+    }
+    /* Must hold "$SD/Run=/sd/" + a full-length path + newline + NUL. At the
      * old fixed 96 a long CAM name overflowed the snprintf and the pendant
      * sent a silently truncated path the controller couldn't open. */
-    char buf[FLUIDNC_NAME_MAX + 32];
-    if (file_name && file_name[0]) {
-        strlcpy(s_status.job_file, file_name, sizeof(s_status.job_file));
-        /* Run from the SD card — matches `$SD/List` in fluidnc_refresh_files
-         * so the user picks a file they actually saw on screen. The
-         * controller answers with error:8 if the path is wrong, which the
-         * dispatcher surfaces as an alarm banner via the next status. */
-        snprintf(buf, sizeof(buf), "$SD/Run=/sd/%s\n", file_name);
-    } else if (s_status.job_file[0] && s_status.job_file[0] != '-') {
-        snprintf(buf, sizeof(buf), "$SD/Run=/sd/%s\n", s_status.job_file);
+    char buf[FLUIDNC_PATH_MAX + 32];
+    if (file_path && file_path[0]) {
+        strlcpy(s_job_path, file_path, sizeof(s_job_path));
+        /* Header labels get the basename; a full path would push the
+         * interesting end of a CAM name off the Dashboard tile. */
+        strlcpy(s_status.job_file, fluidnc_proto_basename(file_path),
+                sizeof(s_status.job_file));
+        /* Run from the SD card, matching `$SD/List` in fluidnc_refresh_files
+         * so the user picks a file they actually saw on screen. The path is
+         * sent verbatim, directories included, which is what makes a job
+         * inside a folder runnable at all. The controller answers with
+         * error:8 if the path is wrong, which the dispatcher surfaces as an
+         * alarm banner via the next status. */
+        snprintf(buf, sizeof(buf), "$SD/Run=/sd/%s\n", s_job_path);
+    } else if (s_job_path[0]) {
+        snprintf(buf, sizeof(buf), "$SD/Run=/sd/%s\n", s_job_path);
     } else {
         return ESP_ERR_INVALID_ARG;
     }
@@ -1336,12 +1543,16 @@ esp_err_t fluidnc_refresh_files(void)
     files_lock();
     s_files_n = 0;   /* keep the allocation; only the count resets */
     files_unlock();
+    /* Fresh walk, so no folder is in scope yet. A stale stack would file the
+     * new listing's root entries under the previous run's last folder. */
+    memset(s_dir_stack, 0, sizeof(s_dir_stack));
     s_collecting_files = true;
     /* Query the FluidNC controller's SD card — this is the operator's
      * primary file store. The on-board SPIFFS ($LocalFS/List) is for
      * configuration files, not gcode jobs. */
     return write_line("$SD/List\n");
 }
+
 
 size_t fluidnc_get_files(fluidnc_file_t *out, size_t out_cap)
 {

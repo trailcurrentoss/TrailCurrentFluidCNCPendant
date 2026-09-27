@@ -31,8 +31,16 @@
 
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+/* Per-send() socket timeout, and the overall budget for getting one complete
+ * line out. The deadline is what bounds a UI freeze; the chunk timeout just
+ * keeps each send() from parking for the whole budget at once. */
+#define TX_CHUNK_TIMEOUT_MS    120
+#define TX_LINE_DEADLINE_MS    600
+
 
 static const char *TAG = "fluidnc_telnet";
 
@@ -94,6 +102,18 @@ static int try_connect(const char *host, uint16_t port)
     /* Switch RCVTIMEO back to blocking so the rx task isn't churning. */
     tv.tv_sec = 0; tv.tv_usec = 0;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    /* Drop SNDTIMEO from the 5 s connect value to something a UI can survive.
+     * telnet_write() runs on whatever task issued the command - the LVGL task
+     * for a macro or a button - so every millisecond send() blocks is a
+     * millisecond the screen is frozen. FluidNC stops reading its socket while
+     * it is busy (homing, running a job, chewing a multi-line macro), its
+     * receive window fills, and at 5 s a single macro tap froze the pendant
+     * long enough to look dead; measured stalls were 1.9-2.2 s with writes
+     * failing outright afterwards. Short timeout + the retry loop in
+     * telnet_write() keeps a busy controller from taking the UI with it. */
+    tv.tv_sec = 0; tv.tv_usec = TX_CHUNK_TIMEOUT_MS * 1000;
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     /* Realtime control stream — never let Nagle hold a write. A queued
      * 0x85 jog-cancel or E-STOP byte sitting in the TCP send buffer
@@ -193,8 +213,42 @@ static void telnet_close(void)
 static esp_err_t telnet_write(const void *data, size_t n)
 {
     if (!s_open || s_sock < 0) return ESP_ERR_INVALID_STATE;
-    int sent = send(s_sock, data, n, 0);
-    return sent == (int)n ? ESP_OK : ESP_FAIL;
+
+    /* Write the WHOLE line or report failure. A bare send() that returns short
+     * used to be reported as ESP_FAIL and dropped - but the bytes it did send
+     * were already in the controller's stream, so a partial write left a
+     * truncated g-code line there for FluidNC to choke on. Half of
+     * "$SD/Run=/sd/part.nc" is not a safe thing to hand a machine.
+     *
+     * Bounded by TX_LINE_DEADLINE_MS overall so a wedged controller can't pin
+     * the calling task (often the LVGL task) indefinitely. */
+    const char *p = (const char *)data;
+    size_t off = 0;
+    int64_t deadline = esp_timer_get_time() + (int64_t)TX_LINE_DEADLINE_MS * 1000;
+
+    while (off < n) {
+        int sent = send(s_sock, p + off, n - off, 0);
+        if (sent > 0) {
+            off += (size_t)sent;
+            continue;
+        }
+        if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+            if (esp_timer_get_time() >= deadline) {
+                ESP_LOGW(TAG, "send timed out with %u of %u bytes written - "
+                              "the controller is not reading its socket",
+                         (unsigned)off, (unsigned)n);
+                return ESP_ERR_TIMEOUT;
+            }
+            /* Yield rather than spin: the window opens when the controller
+             * drains its buffer, which is milliseconds away at best. */
+            vTaskDelay(pdMS_TO_TICKS(5));
+            continue;
+        }
+        ESP_LOGW(TAG, "send failed after %u of %u bytes: errno=%d",
+                 (unsigned)off, (unsigned)n, errno);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 
 static bool telnet_is_open(void) { return s_open; }

@@ -33120,7 +33120,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "78092204-003c-b787-b06c-e51239d0e3fa"
                   },
@@ -33270,7 +33270,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "8d4acb87-4de6-8cc9-db68-69d809d6d40c"
                   },
@@ -33420,7 +33420,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "c83a70e4-b046-50f1-7d96-2538aa8eb6ab"
                   },
@@ -33570,7 +33570,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "c3a1b476-47a4-206f-9a9d-50884dd98b34"
                   },
@@ -33720,7 +33720,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "817f92e9-7a7c-50d1-463a-1b51eaf47a32"
                   },
@@ -33870,7 +33870,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "89656c8f-cd27-ceea-6e3b-2f7ea910f44d"
                   },
@@ -34020,7 +34020,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "87622aa7-3615-de6f-7fd7-920928f838ec"
                   },
@@ -34170,7 +34170,7 @@
                   "checkedStateType": "literal",
                   "disabledStateType": "literal",
                   "states": "",
-                  "useStyle": "IconFa22",
+                  "useStyle": "IconDockTab",
                   "localStyles": {
                     "objID": "89c7e421-30b7-5785-3ee6-c70c0ed7102b"
                   },
@@ -35004,7 +35004,6 @@
           "definition": {
             "MAIN": {
               "DEFAULT": {
-                "text_color": "TextMuted",
                 "text_font": "MONTSERRAT_10"
               },
               "CHECKED": {
@@ -35630,6 +35629,21 @@
                 "border_width": 0,
                 "radius": 8,
                 "text_color": "TextMuted",
+                "text_font": "MONTSERRAT_10",
+                "pad_top": 0,
+                "pad_bottom": 0,
+                "pad_left": 0,
+                "pad_right": 0
+              },
+              "CHECKED": {
+                "bg_color": "AccentSoft",
+                "bg_opa": 255,
+                "border_color": "AccentPrimary",
+                "border_width": 2,
+                "border_opa": 255,
+                "border_side": "BOTTOM",
+                "radius": 8,
+                "text_color": "AccentPrimary",
                 "text_font": "MONTSERRAT_10",
                 "pad_top": 0,
                 "pad_bottom": 0,
@@ -36307,6 +36321,22 @@
                 "radius": 8,
                 "text_color": "TextPrimary",
                 "text_font": "MONTSERRAT_12"
+              }
+            }
+          }
+        }
+      },
+      {
+        "objID": "f5fba12a-2145-96d0-a6d3-546bc2771b87",
+        "name": "IconDockTab",
+        "forWidgetType": "LVGLLabelWidget",
+        "childStyles": [],
+        "definition": {
+          "objID": "c888087a-3cb6-2eeb-f179-c6d00b0fb0ba",
+          "definition": {
+            "MAIN": {
+              "DEFAULT": {
+                "text_font": "fa_22"
               }
             }
           }

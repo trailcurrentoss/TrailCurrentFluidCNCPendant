@@ -248,6 +248,7 @@ void remove_style_btn_round(lv_obj_t *obj);
 
 // Style: BtnDockInactive
 lv_style_t *get_style_btn_dock_inactive_MAIN_DEFAULT();
+lv_style_t *get_style_btn_dock_inactive_MAIN_CHECKED();
 void add_style_btn_dock_inactive(lv_obj_t *obj);
 void remove_style_btn_dock_inactive(lv_obj_t *obj);
 
@@ -399,7 +400,10 @@ lv_style_t *get_style_default_button_matrix_ITEMS_DEFAULT();
 void add_style_default_button_matrix(lv_obj_t *obj);
 void remove_style_default_button_matrix(lv_obj_t *obj);
 
-
+// Style: IconDockTab
+lv_style_t *get_style_icon_dock_tab_MAIN_DEFAULT();
+void add_style_icon_dock_tab(lv_obj_t *obj);
+void remove_style_icon_dock_tab(lv_obj_t *obj);
 
 #ifdef __cplusplus
 }

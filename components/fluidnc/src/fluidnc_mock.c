@@ -34,13 +34,18 @@ static void                 *s_user_ctx  = NULL;
 static TaskHandle_t          s_task      = NULL;
 static volatile bool         s_run_task  = false;
 
+/* A couple of jobs filed in folders, because a flat list is exactly the case
+ * that hid the folder-navigation bug on the real backend. `path` is what the
+ * UI navigates and runs; `name` is what it shows. */
 static const fluidnc_file_t s_files[] = {
-    { "bracket_v3.nc",         184  * 1024, "Today 09:42" },
-    { "spoilboard_surface.gcode",  22 * 1024, "Yesterday" },
-    { "nameplate_oak.nc",      512  * 1024, "Jun 09" },
-    { "pcb_iso_mill.nc",       1200 * 1024, "Jun 07" },
-    { "enclosure_lid.nc",       96  * 1024, "Jun 02" },
-    { "circle_test.nc",          4  * 1024, "May 28" },
+    { .name = "jobs",                  .path = "jobs",                  .is_dir = true  },
+    { .name = "fixtures",              .path = "jobs/fixtures",         .is_dir = true  },
+    { .name = "bracket_v3.nc",         .path = "bracket_v3.nc",         .size_bytes = 184  * 1024, .date = "Today 09:42" },
+    { .name = "spoilboard_surface.gcode", .path = "spoilboard_surface.gcode", .size_bytes = 22 * 1024, .date = "Yesterday" },
+    { .name = "nameplate_oak.nc",      .path = "jobs/nameplate_oak.nc", .size_bytes = 512  * 1024, .date = "Jun 09" },
+    { .name = "pcb_iso_mill.nc",       .path = "jobs/pcb_iso_mill.nc",  .size_bytes = 1200 * 1024, .date = "Jun 07" },
+    { .name = "enclosure_lid.nc",      .path = "jobs/fixtures/enclosure_lid.nc", .size_bytes = 96 * 1024, .date = "Jun 02" },
+    { .name = "circle_test.nc",        .path = "circle_test.nc",        .size_bytes = 4  * 1024, .date = "May 28" },
 };
 
 static void notify(void)
@@ -315,6 +320,9 @@ esp_err_t fluidnc_mist (bool on) { s_status.mist  = on; notify(); return ESP_OK;
 
 esp_err_t fluidnc_job_start(const char *file_name)
 {
+    /* Mirror the real backend's one-job-at-a-time gate so the UI behaves the
+     * same on the bench. */
+    if (s_status.job_running) return ESP_ERR_INVALID_STATE;
     if (s_status.state == FLUIDNC_STATE_ALARM) return ESP_OK;
     if (file_name) strlcpy(s_status.job_file, file_name, sizeof(s_status.job_file));
     s_status.job_running      = true;

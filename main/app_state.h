@@ -44,6 +44,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "esp_err.h"
+#include "fluidnc.h"   /* fluidnc_file_t - Files page row resolution */
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,6 +76,24 @@ void app_state_set_pendant_tab(int tab_id);
  * and the System "Network" row from pendant_config + wifi_setup. Safe from
  * any task — brackets LVGL access with bsp_display_lock(). */
 void app_state_refresh_connection_display(void);
+
+/* What a tap on a Files page row turned out to be. The rows are a view over
+ * the controller's flat listing filtered to one folder, so the row index a
+ * widget carries has to be resolved against that view rather than used as an
+ * index into fluidnc_get_file(). */
+typedef enum {
+    APP_FILES_TAP_NONE = 0,  /* stale row index - nothing to do */
+    APP_FILES_TAP_NAV,       /* folder or ".." - already navigated + repainted */
+    APP_FILES_TAP_FILE,      /* a g-code file; *out is filled in */
+} app_files_tap_t;
+
+/* Resolve a Files page row tap. On APP_FILES_TAP_FILE, *out receives the
+ * entry - including `path`, which is what fluidnc_job_start() needs in order
+ * to run a job that lives inside a folder. On APP_FILES_TAP_NAV the folder
+ * change and repaint have already happened and the caller has nothing left to
+ * do except drop any previous selection. Must be called with the LVGL lock
+ * held - i.e. from inside an event handler. */
+app_files_tap_t app_state_files_tap(int idx, fluidnc_file_t *out);
 
 /* Repaint the 6 Files page rows from fluidnc_get_files(). Called after
  * fluidnc_refresh_files() returns and from action_file_refresh when the

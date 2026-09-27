@@ -7,6 +7,23 @@
 extern "C" {
 #endif
 
+// Screens
+
+enum ScreensEnum {
+    _SCREEN_ID_FIRST = 1,
+    SCREEN_ID_PAGE_WIFI_SETUP = 1,
+    SCREEN_ID_PAGE_FLUID_CONNECT = 2,
+    SCREEN_ID_PAGE_DASHBOARD = 3,
+    SCREEN_ID_PAGE_JOG = 4,
+    SCREEN_ID_PAGE_RUN = 5,
+    SCREEN_ID_PAGE_FILES = 6,
+    SCREEN_ID_PAGE_SPINDLE = 7,
+    SCREEN_ID_PAGE_PROBE = 8,
+    SCREEN_ID_PAGE_MACROS = 9,
+    SCREEN_ID_PAGE_SETTINGS = 10,
+    _SCREEN_ID_LAST = 10
+};
+
 typedef struct _objects_t {
     lv_obj_t *page_wifi_setup;
     lv_obj_t *page_fluid_connect;
@@ -1036,19 +1053,6 @@ typedef struct _objects_t {
 
 extern objects_t objects;
 
-enum ScreensEnum {
-    SCREEN_ID_PAGE_WIFI_SETUP = 1,
-    SCREEN_ID_PAGE_FLUID_CONNECT = 2,
-    SCREEN_ID_PAGE_DASHBOARD = 3,
-    SCREEN_ID_PAGE_JOG = 4,
-    SCREEN_ID_PAGE_RUN = 5,
-    SCREEN_ID_PAGE_FILES = 6,
-    SCREEN_ID_PAGE_SPINDLE = 7,
-    SCREEN_ID_PAGE_PROBE = 8,
-    SCREEN_ID_PAGE_MACROS = 9,
-    SCREEN_ID_PAGE_SETTINGS = 10,
-};
-
 void create_screen_page_wifi_setup();
 void tick_screen_page_wifi_setup();
 
@@ -1088,6 +1092,13 @@ void tick_user_widget_bottom_dock(int startWidgetIndex);
 void create_user_widget_alarm_ribbon(lv_obj_t *parent_obj, int startWidgetIndex);
 void tick_user_widget_alarm_ribbon(int startWidgetIndex);
 
+void tick_screen_by_id(enum ScreensEnum screenId);
+void tick_screen(int screen_index);
+
+void create_screens();
+
+// Color themes
+
 enum Themes {
     THEME_ID_DEFAULT,
     THEME_ID_DARK,
@@ -1119,12 +1130,6 @@ enum Colors {
 void change_color_theme(uint32_t themeIndex);
 extern uint32_t theme_colors[2][22];
 extern uint32_t active_theme_index;
-
-void tick_screen_by_id(enum ScreensEnum screenId);
-void tick_screen(int screen_index);
-
-void create_screens();
-
 
 #ifdef __cplusplus
 }

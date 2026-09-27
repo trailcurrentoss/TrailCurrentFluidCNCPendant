@@ -100,8 +100,35 @@ fluidnc_rx_kind_t fluidnc_proto_classify(const char *line);
 int  fluidnc_proto_get_error_code(const char *line);
 int  fluidnc_proto_get_alarm_code(const char *line);
 bool fluidnc_proto_get_msg(const char *line, char *out, size_t out_max);
+/* Parse a "[FILE: <indent><name>|SIZE:<n>]" line.
+ *   name  - the bare filename, indentation stripped
+ *   depth - how deep in the tree the controller found it, 0 = card root
+ *
+ * FluidNC's $SD/List walks the card recursively but prints only each entry's
+ * FILENAME; the folder it lives in is encoded as leading SPACES, one per level
+ * (FileCommands.cpp: `"[FILE: " << std::string(iter.depth(), ' ') << ...`).
+ * No path appears anywhere in the reply, so this depth - combined with the
+ * most recent [DIR:] line at each shallower level - is the only way to tell
+ * which folder a file belongs to. Skipping the indentation (as this parser
+ * used to) makes every file in every subfolder look like it sits in the root,
+ * and `$SD/Run=` then names a file that isn't there.
+ *
+ * A build that reports full paths instead ("/sd/jobs/part.nc") still parses:
+ * the path lands in `name` with depth 0, and the caller notices the '/'.
+ * Either out-pointer may be NULL. */
 bool fluidnc_proto_parse_file_entry(const char *line, char *name, size_t name_max,
-                                    uint32_t *size_bytes);
+                                    uint32_t *size_bytes, int *depth);
+
+/* Same for a "[DIR:<indent><name>]" line. Note the asymmetry in FluidNC's own
+ * format strings: "[FILE: " carries one literal space before the indent while
+ * "[DIR:" carries none, so the two are counted differently. Any trailing '/'
+ * is stripped. */
+bool fluidnc_proto_parse_dir_entry(const char *line, char *name, size_t name_max,
+                                   int *depth);
+
+/* Last component of `path`, or `path` itself when it has no '/'. Returns a
+ * pointer into `path` - never NULL for a non-NULL argument. */
+const char *fluidnc_proto_basename(const char *path);
 
 /* Parse a `[MSG:...]` line looking for FluidNC's SD card capacity report.
  * Different FluidNC versions emit different shapes — the common ones are:

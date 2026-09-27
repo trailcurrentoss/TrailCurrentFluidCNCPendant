@@ -36,6 +36,12 @@ extern "C" {
  * in that chain uses this one constant so they cannot drift apart again. */
 #define FLUIDNC_NAME_MAX 128
 
+/* Longest path (relative to the SD card root, no leading slash) the pendant
+ * carries for one listing entry — "jobs/2026/fixtures/<name>.nc". A folder
+ * name is not bounded by FLUIDNC_NAME_MAX above it, so paths get their own,
+ * larger cap; `$SD/Run=` sends the path, never the bare name. */
+#define FLUIDNC_PATH_MAX 256
+
 typedef enum {
     FLUIDNC_STATE_DISCONNECTED = 0,
     FLUIDNC_STATE_CONNECTING,
@@ -176,12 +182,26 @@ esp_err_t fluidnc_send_line(const char *line);
 
 /* --- SD file listing on the FluidNC controller. --- */
 typedef struct {
+    /* Last path component — what the Files page shows in the name column. */
     char     name[FLUIDNC_NAME_MAX];
-    uint32_t size_bytes;
+    uint32_t size_bytes;              /* 0 for a directory */
     char     date[20];
+    /* Path relative to the SD card root, no leading slash: "part.nc" at the
+     * top level, "jobs/part.nc" inside a folder. This is what must be sent
+     * back in `$SD/Run=/sd/<path>`, and what the UI compares against to work
+     * out which entries belong to the folder it is currently showing. */
+    char     path[FLUIDNC_PATH_MAX];
+    /* True for a folder. Folders are listed so the user can open them; they
+     * are never runnable. */
+    bool     is_dir;
 } fluidnc_file_t;
 
+/* Ask the controller for the whole card: clears the cache, then sends a plain
+ * `$SD/List`. FluidNC answers recursively - every file in every folder - but
+ * names each entry by FILENAME only, with its folder implied by an indent
+ * depth, so the dispatcher rebuilds the paths as the reply streams in. */
 esp_err_t fluidnc_refresh_files(void);
+
 
 /* Bulk copy into a caller-supplied array, truncating at out_cap. Prefer
  * fluidnc_get_file() below for UI code — the listing is unbounded, so any
